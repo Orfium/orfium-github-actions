@@ -93,9 +93,9 @@ jobs:
             addon_name=$(_jq '.as')
             if [[ "$addon_type" != "" ]]; then
               if [[ "$addon_name" == "null" ]]; then
-                echo $addon_type #heroku addons:create $addon_type --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }} --wait
+                heroku addons:create $addon_type --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }} --wait
               else
-                echo $addon_name #heroku addons:create $addon_type --as $addon_name --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }} --wait
+                heroku addons:create $addon_type --as $addon_name --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }} --wait
               fi
             fi
           done
