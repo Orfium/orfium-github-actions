@@ -40,7 +40,8 @@ jobs:
       HEROKU_APP_NAME: ${{ inputs.app_name }}
 
     steps:
-      - name: Checkout repository
+      - if: inputs.event_type != 'closed'
+        name: Checkout repository
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
