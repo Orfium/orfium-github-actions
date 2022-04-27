@@ -28,6 +28,9 @@ on:
 
 jobs:
   heroku-pull-request:
+    environment:
+      name: ${{ inputs.app_name }}
+      url: ${{ inputs.app_name }}.herokuapp.com
     runs-on: ubuntu-latest
     env:
       HEROKU_APP_NAME: ${{ inputs.app_name }}
