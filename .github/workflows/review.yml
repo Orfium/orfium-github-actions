@@ -91,6 +91,13 @@ jobs:
         if: inputs.event_type == 'opened'
         run: |
           heroku ps:scale web=1 worker=1 beat=1 --app=${{ inputs.app_name }}
+      - name: Run Postdeploy
+        if: inputs.event_type == 'opened'
+        run: |
+          POSTDEPLOY_SCRIPT=$(jq -r .scripts.postdeploy app.json)
+          if [[ "null" != "$POSTDEPLOY_SCRIPT" ]]; then
+            heroku run:detached --app=${{ inputs.app_name }} "$POSTDEPLOY_SCRIPT"
+          fi
       - name: Destroy Heroku app
         if: inputs.event_type == 'closed'
         run: heroku apps:destroy --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }}
