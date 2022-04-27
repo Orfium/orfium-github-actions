@@ -73,6 +73,9 @@ jobs:
       - name: Add env vars from github secrets
         if: inputs.event_type == 'opened'
         run: |
+          if [[ "${{ secrets.REVIEW_APPS_ENV_VARS }}" == "" ]]; then
+            exit 0
+          fi
           echo ${{ secrets.REVIEW_APPS_ENV_VARS }} > .review_env_enc
           cat .review_env_enc | base64 -d > .review_env
           cat .review_env | tr '\n' ' ' | xargs heroku config:set --app=${{ inputs.app_name }}
