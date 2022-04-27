@@ -94,11 +94,16 @@ jobs:
             }
             addon_type=$(_jq '.plan')
             addon_name=$(_jq '.as')
+            version=$(_jq '.options.version')
+            VERSION=""
+            if [[ "$version" != "null" ]]; then
+              VERSION="--version=$version"
+            fi
             if [[ "$addon_type" != "" ]]; then
               if [[ "$addon_name" == "null" ]]; then
-                heroku addons:create $addon_type --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }} --wait
+                command=$(heroku addons:create $addon_type $VERSION --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }} --wait)
               else
-                heroku addons:create $addon_type --as $addon_name --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }} --wait
+                command=$(heroku addons:create $addon_type --as $addon_name $VERSION --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }} --wait)
               fi
             fi
           done
