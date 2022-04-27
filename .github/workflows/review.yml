@@ -19,6 +19,10 @@ on:
         description: The name of the app used as source for env
         required: true
         type: string
+      collaborators:
+        description: Comma-separated emails of collaborators to be added to the review app
+        required: false
+        type: string
 
     secrets:
       HEROKU_API_KEY:
@@ -50,7 +54,15 @@ jobs:
           justlogin: true
       - name: Create Heroku app
         if: inputs.event_type == 'opened'
-        run: heroku apps:create ${{ inputs.app_name }} --team=orfium
+        run: |
+          heroku apps:create ${{ inputs.app_name }} --team=orfium
+          COLLABORATORS=${{ inputs.collaborators }}
+          if [[ "$COLLABORATORS" == "" ]]; then
+            exit 0
+          fi
+          for collaborator in ${COLLABORATORS//,/ }; do
+            heroku access:add $collaborator --app ${{ inputs.app_name }}
+          done
       - name: Add buildpacks
         if: inputs.event_type == 'opened'
         run: |
