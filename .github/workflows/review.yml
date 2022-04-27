@@ -108,7 +108,14 @@ jobs:
       - name: Scale up formation
         if: inputs.event_type == 'opened'
         run: |
-          heroku ps:scale web=1 worker=1 beat=1 --app=${{ inputs.app_name }}
+          formation=$(jq -r .formation app.json)
+          if [[ "$formation" == "null" ]]; then
+            exit 0
+          fi
+          services=$(jq '.formation | keys[]' app.json)
+          for service in $(echo "${services}"); do
+            heroku ps:scale ${service}=1 --app=${{ inputs.app_name }}
+          done
       - name: Run Postdeploy
         if: inputs.event_type == 'opened'
         run: |
