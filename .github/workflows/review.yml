@@ -54,8 +54,14 @@ jobs:
       - name: Add buildpacks
         if: inputs.event_type == 'opened'
         run: |
-          heroku buildpacks:add --index 1 https://github.com/moneymeets/python-poetry-buildpack.git --app=${{ inputs.app_name }}
-          heroku buildpacks:add --index 2 heroku/python --app=${{ inputs.app_name }}
+          buildpacks=$(jq -r .buildpacks app.json)
+          for row in $(echo "${buildpacks}" | jq -r '.[] | @base64'); do
+              _jq() {
+               echo ${row} | base64 --decode | jq -r ${1}
+              }
+             buildpack=$(_jq '.url')
+             heroku buildpacks:add $buildpack --app=${{ inputs.app_name }}
+          done
       - name: Add Heroku app to pipeline
         if: inputs.event_type == 'opened'
         run: heroku pipelines:add ${{ inputs.pipeline_name }} --app=${{ inputs.app_name }} --stage=development
