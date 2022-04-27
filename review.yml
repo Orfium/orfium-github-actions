@@ -1,0 +1,93 @@
+name: Create Heroku Review App
+
+on:
+  workflow_call:
+    inputs:
+      event_type:
+        description: Pull request event type
+        required: true
+        type: string
+      app_name:
+        description: The name of the new review app
+        required: true
+        type: string
+      pipeline_name:
+        description: The name of the pipeline the app belongs to
+        required: true
+        type: string
+      base_app_name:
+        description: The name of the app used as source for env
+        required: true
+        type: string
+
+    secrets:
+      HEROKU_API_KEY:
+        required: true
+      REVIEW_APPS_ENV_VARS:
+        required: false
+
+jobs:
+  heroku-pull-request:
+    runs-on: ubuntu-latest
+    env:
+      HEROKU_APP_NAME: ${{ inputs.app_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+      - name: Login to Heroku
+        uses: akhileshns/heroku-deploy@v3.12.12
+        with:
+          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+          heroku_email: devops@orfium.com
+          heroku_app_name: ${{ inputs.app_name }}
+          justlogin: true
+      - name: Create Heroku app
+        if: inputs.event_type == 'opened'
+        run: heroku apps:create ${{ inputs.app_name }} --team=orfium
+      - name: Add buildpacks
+        if: inputs.event_type == 'opened'
+        run: |
+          heroku buildpacks:add --index 1 https://github.com/moneymeets/python-poetry-buildpack.git --app=${{ inputs.app_name }}
+          heroku buildpacks:add --index 2 heroku/python --app=${{ inputs.app_name }}
+      - name: Add Heroku app to pipeline
+        if: inputs.event_type == 'opened'
+        run: heroku pipelines:add ${{ inputs.pipeline_name }} --app=${{ inputs.app_name }} --stage=development
+      - name: Copy env vars from staging environment
+        if: inputs.event_type == 'opened'
+        run: |
+          heroku config --shell --app=${{ inputs.base_app_name }} > .env
+          cat .env | tr '\n' ' ' | xargs heroku config:set --app=${{ inputs.app_name }}
+      - name: Add env vars from github secrets
+        if: inputs.event_type == 'opened'
+        run: |
+          echo ${{ secrets.REVIEW_APPS_ENV_VARS }} > .review_env_enc
+          cat .review_env_enc | base64 -d > .review_env
+          cat .review_env | tr '\n' ' ' | xargs heroku config:set --app=${{ inputs.app_name }}
+      - name: Add env vars for review app
+        if: inputs.event_type == 'opened'
+        run: |
+          heroku config:set DJANGO_ALLOWED_HOSTS=${{ inputs.app_name }}.herokuapp.com  --app=${{ inputs.app_name }}
+          heroku config:set DD_TRACE_ENABLED=false  --app=${{ inputs.app_name }}
+      - name: Add addons
+        if: inputs.event_type == 'opened'
+        run: |
+          heroku addons:create heroku-postgresql:hobby-dev --as SHARED_DATABASE --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }} --wait
+          heroku addons:create heroku-postgresql:hobby-dev --as DATABASE --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }} --wait
+          heroku addons:create heroku-redis:hobby-dev --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }} --wait
+      - name: Add Heroku remote
+        if: inputs.event_type != 'closed'
+        run: heroku git:remote --app=${{ inputs.app_name }}
+      - name: Push to Heroku
+        if: inputs.event_type != 'closed'
+        run: git push heroku ${{ github.head_ref }}:master --force
+      - name: Scale up formation
+        if: inputs.event_type == 'opened'
+        run: |
+          heroku ps:scale web=1 worker=1 beat=1 --app=${{ inputs.app_name }}
+      - name: Destroy Heroku app
+        if: inputs.event_type == 'closed'
+        run: heroku apps:destroy --app=${{ inputs.app_name }} --confirm=${{ inputs.app_name }}
