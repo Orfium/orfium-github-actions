@@ -25,7 +25,7 @@ on:
         default: 'nocombine'
         type: string
     secrets:
-      GITHUB_TOKEN:
+      token:
         required: true
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
@@ -41,7 +41,7 @@ jobs:
         id: fetch-branch-names
         name: Fetch branch names
         with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
+          github-token: ${{secrets.token}}
           script: |
             const pulls = await github.paginate('GET /repos/:owner/:repo/pulls', {
               owner: context.repo.owner,
@@ -132,7 +132,7 @@ jobs:
       - uses: actions/github-script@v6
         name: Create Combined Pull Request
         with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
+          github-token: ${{secrets.token}}
           script: |
             const prString = `${{ steps.fetch-branch-names.outputs.prs-string }}`;
             const body = 'This PR was created by the Combine PRs action by combining the following PRs:\n' + prString;
