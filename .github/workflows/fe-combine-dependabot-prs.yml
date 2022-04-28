@@ -9,11 +9,6 @@ on:
         required: true
         default: 'dependabot'
         type: string
-      mustBeGreen:
-        description: 'Only combine PRs that are green (status is success)'
-        required: true
-        default: 'false'
-        type: string
       combineBranchName:
         description: 'Name of the branch to combine PRs into'
         required: true
@@ -56,23 +51,7 @@ jobs:
               if (branch.startsWith('${{ github.event.inputs.branchPrefix }}')) {
                 console.log('Branch matched: ' + branch);
                 statusOK = true;
-                
-                if(${{ github.event.inputs.mustBeGreen }}) {
-                  console.log('Checking green status: ' + branch);
-                  const statuses = await github.paginate('GET /repos/{owner}/{repo}/commits/{ref}/status', {
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    ref: branch
-                  });
-                  if(statuses.length > 0) {
-                    const latest_status = statuses[0]['state'];
-                    console.log('Validating status: ' + latest_status);
-                    if(latest_status != 'success') {
-                      console.log('Discarding ' + branch + ' with status ' + latest_status);
-                      statusOK = false;
-                    }
-                  }
-                }
+
                 console.log('Checking labels: ' + branch);
                 const labels = pull['labels'];
                 for(const label of labels) {
