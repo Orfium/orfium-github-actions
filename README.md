@@ -1,2 +1,41 @@
 # orfium-github-actions
 Reusable GitHub actions
+
+
+## FE Combine Dependabot PRs
+
+Add this to your project's workflows.
+
+```yaml
+name: 'Combine PRs'
+
+on:
+  workflow_dispatch:
+    inputs:
+      branchPrefix:
+        description: 'Branch prefix to find combinable PRs based on'
+        required: true
+        default: 'dependabot'
+      combineBranchName:
+        description: 'Name of the branch to combine PRs into'
+        required: true
+        default: 'combined-dependabot'
+      ignoreLabel:
+        description: 'Exclude PRs with this label'
+        required: true
+        default: 'nocombine'
+
+jobs:
+  call-workflow:
+    uses: Orfium/orfium-github-actions/.github/workflows/fe-combine-dependabot-prs.yml
+    with:
+      branchPrefix: github.event.inputs.branchPrefix
+      combineBranchName: github.event.inputs.combineBranchName
+      ignoreLabel: github.event.inputs.ignoreLabel
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+
+
+```
+
+On workflows, select the Combine PRs workflow and simply press run.
