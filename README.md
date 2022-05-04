@@ -27,7 +27,7 @@ on:
 
 jobs:
   call-workflow:
-    uses: Orfium/orfium-github-actions/.github/workflows/fe-combine-dependabot-prs.yml
+    uses: Orfium/orfium-github-actions/.github/workflows/fe-combine-dependabot-prs.yml@master
     with:
       branchPrefix: github.event.inputs.branchPrefix
       combineBranchName: github.event.inputs.combineBranchName
