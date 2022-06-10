@@ -84,6 +84,8 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          token: ${{secrets.token}}
+
       # Creates a branch with other PR branches merged together
       - name: Created combined branch
         env:
