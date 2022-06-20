@@ -16,8 +16,8 @@ on:
 jobs:
   delete-review-app:
     env:
-      PRODUCT: ${{ github.event.inputs.product }}
-      PR_NUMBER: ${{ github.event.inputs.pr-number }}
+      PRODUCT: ${{ inputs.product }}
+      PR_NUMBER: ${{ inputs.pr-number }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
