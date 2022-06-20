@@ -1,0 +1,38 @@
+name: Teardown review env
+on:
+  workflow_call:
+    inputs:
+      product:
+        description: The product name used for the review env
+        required: true
+        type: string
+      pr-number:
+        description: The number of the closed PR
+        required: true
+        type: string
+    secrets:
+      token:
+        required: true
+jobs:
+  delete-review-app:
+    env:
+      PRODUCT: ${{ github.event.inputs.product }}
+      PR_NUMBER: ${{ github.event.inputs.pr-number }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: strumwolf/delete-deployment-environment@v2
+        with:
+          token: ${{ secrets.token }}
+          environment: review-${{ env.PR_NUMBER }}
+          onlyRemoveDeployments: true
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::102867326982:role/GithubDevCDRole
+          aws-region: "us-east-1"
+      - name: Delete Cloudformation stack, S3 files and S3 bucket
+        run: |
+          STACKNAME=${{ env.PRODUCT }}-pr-${{ env.PR_NUMBER }}
+          S3_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name "$STACKNAME" --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' --output text)
+          aws cloudformation delete-stack --stack-name $STACKNAME
+          aws s3 rb s3://$S3_BUCKET_NAME --force
