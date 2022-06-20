@@ -19,6 +19,9 @@ jobs:
       PRODUCT: ${{ github.event.inputs.product }}
       PR_NUMBER: ${{ github.event.inputs.pr-number }}
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: strumwolf/delete-deployment-environment@v2
         with:
