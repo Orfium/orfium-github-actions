@@ -1,0 +1,46 @@
+name: Teardown review env
+on:
+  workflow_call:
+    secrets:
+      GITHUB_TOKEN:
+        required: true
+        description: GitHub token inherited from invoker
+
+jobs:
+  delete-review-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup configuration
+        id: config
+        run: |
+          set -o allexport
+          # Load optional common configuration
+          if [ -f environments/common.env ]; then
+              source environments/common.env
+          fi
+          source environments/review.env
+          STACKNAME=${PRODUCT}-pr-${{ github.event.pull_request.number }}
+          echo "::set-output name=stackname::$STACKNAME"
+          echo "::set-output name=cd_role::$CD_ROLE"
+
+      - uses: strumwolf/delete-deployment-environment@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          environment: review-${{ github.event.pull_request.number }}
+          onlyRemoveDeployments: true
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ steps.config.outputs.cd_role }}
+          aws-region: "us-east-1"
+
+      - name: Delete Cloudformation stack, S3 files and S3 bucket
+        run: |
+          STACKNAME=${{ steps.config.outputs.stackname }}
+          S3_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name "$STACKNAME" --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' --output text)
+          aws cloudformation delete-stack --stack-name $STACKNAME
+          aws s3 rb s3://$S3_BUCKET_NAME --force
