@@ -17,14 +17,30 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       env-name: ${{ steps.get-env.outputs.env-name }}
+      url: ${{ steps.get-env.outputs.url }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
       - id: get-env
         run: |
+          set -o allexport
+          # Load optional common configuration
+          if [ -f environments/common.env ]; then
+              source environments/common.env
+          fi
+          source environments/${{ inputs.target-environment }}.env
+
+          SUBDOMAIN=$PRODUCT
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              SUBDOMAIN=${SUBDOMAIN}-pr-${{ github.event.pull_request.number }}
+          fi
           ENV=${{ inputs.target-environment }}
           if [[ ${{ github.event_name }} == "pull_request" ]]; then
             ENV=review-${{ github.event.pull_request.number }}
           fi
           echo "::set-output name=env-name::$ENV"
+          echo "::set-output name=url::https://${SUBDOMAIN}.${BASE_DOMAIN}"
 
   deploy-front-end:
     runs-on: ubuntu-latest
@@ -32,6 +48,7 @@ jobs:
       - get-environment-name
     environment:
       name: ${{ needs.get-environment-name.outputs.env-name }}
+      url: ${{ needs.get-environment-name.outputs.url }}
     permissions:
       id-token: write
       contents: read
