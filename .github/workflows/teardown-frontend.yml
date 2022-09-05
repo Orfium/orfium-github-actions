@@ -2,7 +2,7 @@ name: Teardown review env
 on:
   workflow_call:
     secrets:
-      GITHUB_TOKEN:
+      REVIEW_TEARDOWN_TOKEN:
         required: true
         description: GitHub token inherited from invoker
 
