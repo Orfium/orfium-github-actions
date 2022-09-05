@@ -6,6 +6,10 @@ on:
         required: true
         description: GitHub token inherited from invoker
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   delete-review-app:
     runs-on: ubuntu-latest
