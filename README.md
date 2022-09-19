@@ -39,3 +39,29 @@ jobs:
 ```
 
 On workflows, select the Combine PRs workflow and simply press run.
+
+
+## Trigger release pr to production (periodically)
+
+By adding this to your project:
+```yaml
+name: 'Trigger Release to Production PR'
+on:
+  schedule:
+    # Every Tuesdays (2) and Thursdays (4) at 07:25 UTC
+    - cron: "25 7 * * 2,4"
+
+jobs:
+  call-workflow:
+    uses: Orfium/orfium-github-actions/.github/workflows/trigger-release-pr.yml@master
+    with:
+      baseBranchName: 'main'
+      headBranchName: 'develop'
+      releasePrLabels: 'release,automated pr'
+      releasePrIsDraft: false
+      releasePrReviewers: 'username1,username2'
+      releasePrTeamReviewers: 'teamA'
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
+```
+You can trigger periodically (using cron schedule) the creation of a pr (e.g. main <- develop).
