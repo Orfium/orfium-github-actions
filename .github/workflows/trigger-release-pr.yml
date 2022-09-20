@@ -1,6 +1,6 @@
 name: 'Trigger Release to Production PR'
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       baseBranchName:
         description: 'Production branch name (default: `main`)'
