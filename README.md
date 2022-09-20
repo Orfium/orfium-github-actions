@@ -41,7 +41,7 @@ jobs:
 On workflows, select the Combine PRs workflow and simply press run.
 
 
-## Trigger release pr to production (periodically)
+## Trigger Release to Production PR (scheduled reusable workflow)
 
 By adding this to your project:
 ```yaml
@@ -64,4 +64,10 @@ jobs:
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
-You can trigger periodically (using cron schedule) the creation of a pr (e.g. main <- develop).
+If the following requirements are met:
+* no PR between `main` and `develop` is open at the time of the workflow run
+* there is diff between the two branches
+
+a `Release to Production` pr will be opened every Tuesdays and Thursdays at 07:25AM UTC, with `develop` as
+head branch and `main` as the base one (main <-- develop), with labels `release` and `automated pr` and with 
+reviewers GitHub users with username `username1` and `username2` and team with slug `teamA`.

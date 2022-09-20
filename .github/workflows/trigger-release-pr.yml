@@ -62,7 +62,7 @@ jobs:
         with:
           github-token: ${{ secrets.token }}
           script: |
-            title = ${{ github.event.inputs.releasePrTitle }};
+            title = ${{ inputs.releasePrTitle }};
             if (title == '') {
               title = 'Release to Production ${{ steps.date.outputs.date }}';
             };
@@ -71,11 +71,11 @@ jobs:
             const result = await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              head: ${{ github.event.inputs.headBranchName }},
-              base: ${{ github.event.inputs.baseBranchName }},
+              head: ${{ inputs.headBranchName }},
+              base: ${{ inputs.baseBranchName }},
               title: title,
-              body: ${{ github.event.inputs.releasePrBody }},
-              draft: ${{ github.event.inputs.releasePrIsDraft }}
+              body: ${{ inputs.releasePrBody }},
+              draft: ${{ inputs.releasePrIsDraft }}
             });
             
             // Add labels on automated pr
@@ -83,7 +83,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: result.data.number,
-              labels: ${{ github.event.inputs.releasePrLabels }}.split(',')
+              labels: ${{ inputs.releasePrLabels }}.split(',')
             });
             
             // Request reviewers on automated pr
@@ -91,6 +91,6 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: result.data.number,
-              reviewers: ${{ github.event.inputs.releasePrReviewers }}.split(','),
-              team_reviewers: ${{ github.event.inputs.releasePrTeamReviewers }}.split(',')
+              reviewers: ${{ inputs.releasePrReviewers }}.split(','),
+              team_reviewers: ${{ inputs.releasePrTeamReviewers }}.split(',')
             });
