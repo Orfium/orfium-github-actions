@@ -20,7 +20,6 @@ jobs:
       url: ${{ steps.get-env.outputs.url }}
     steps:
       - name: Checkout
-        if: (!contains(github.event.pull_request.labels.*.name, 'dependencies'))
         uses: actions/checkout@v3
 
       - id: get-env
@@ -44,6 +43,7 @@ jobs:
           echo "::set-output name=url::https://${SUBDOMAIN}.${BASE_DOMAIN}"
 
   deploy-front-end:
+    if: (!contains(github.event.pull_request.labels.*.name, 'dependencies'))
     runs-on: ubuntu-latest
     needs:
       - get-environment-name
