@@ -45,6 +45,10 @@ jobs:
       - name: Delete Cloudformation stack, S3 files and S3 bucket
         run: |
           STACKNAME=${{ steps.config.outputs.stackname }}
-          S3_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name "$STACKNAME" --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' --output text)
-          aws cloudformation delete-stack --stack-name $STACKNAME
-          aws s3 rb s3://$S3_BUCKET_NAME --force
+          if aws cloudformation describe-stacks --stack-name $STACKNAME; then
+            S3_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name "$STACKNAME" --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' --output text)
+            aws cloudformation delete-stack --stack-name $STACKNAME
+            aws s3 rb s3://$S3_BUCKET_NAME --force
+          else
+            echo "Stack $STACKNAME  does not exist. Skipping deletion"
+          fi
