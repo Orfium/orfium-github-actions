@@ -46,7 +46,7 @@ jobs:
         run: |
           STACKNAME=${{ steps.config.outputs.stackname }}
           if aws cloudformation describe-stacks --stack-name $STACKNAME; then
-             S3_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name "$STACKNAME" --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' --output text)
+            S3_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name "$STACKNAME" --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' --output text)
             aws cloudformation delete-stack --stack-name $STACKNAME
             aws s3 rb s3://$S3_BUCKET_NAME --force
           fi
