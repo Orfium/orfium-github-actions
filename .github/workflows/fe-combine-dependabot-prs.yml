@@ -116,7 +116,7 @@ jobs:
               git pull origin $sourceBranch --no-edit
             } || {
               git merge --abort
-              echo "Failed branch is ${{sourceBranch}}"
+              echo "Failed branch is ${sourceBranch}"
             }
           done
           
