@@ -65,7 +65,7 @@ jobs:
                 if (statusOK) {
                   console.log('Adding branch to array: ' + branch);
                   branches.push(branch);
-                  prs.push('closes #' + pull['number'] + ' ' + pull['title']);
+                  prs.push('closes #' + pull['number'] + ' ' + pull['title'] + ' ' + branch);
                   base_branch = pull['base']['ref'];
                 }
               }
@@ -88,6 +88,7 @@ jobs:
 
       # Creates a branch with other PR branches merged together
       - name: Created combined branch
+        id: created-combined-branch
         env:
           BASE_BRANCH: ${{ steps.fetch-branch-names.outputs.base-branch }}
           BRANCHES_TO_COMBINE: ${{ steps.fetch-branch-names.outputs.result }}
@@ -104,11 +105,28 @@ jobs:
           git config pull.rebase false
           git config user.name github-actions
           git config user.email github-actions@github.com
-
+          
+          echo $sourcebranches
+          
           git branch $COMBINE_BRANCH_NAME $basebranch
           git checkout $COMBINE_BRANCH_NAME
-          git pull origin $sourcebranches --no-edit
+          
+          EXCLUDED_BRANCHES=''
+                    
+          for sourceBranch in $sourcebranches
+          do
+            {
+              git pull origin $sourceBranch --no-edit
+            } || {
+              git merge --abort
+              echo "Failed branch is ${sourceBranch}"
+              EXCLUDED_BRANCHES+="${sourceBranch} "
+            }
+          done
+          
           git push origin $COMBINE_BRANCH_NAME
+          echo "excluded-branches=$EXCLUDED_BRANCHES" >> $GITHUB_OUTPUT
+          
       # Creates a PR with the new combined branch
       - uses: actions/github-script@v6
         name: Create Combined Pull Request
@@ -116,7 +134,12 @@ jobs:
           github-token: ${{secrets.token}}
           script: |
             const prString = `${{ steps.fetch-branch-names.outputs.prs-string }}`;
-            const body = 'This PR was created by the Combine PRs action by combining the following PRs:\n' + prString;
+            const excluded = `${{ steps.created-combined-branch.outputs.excluded-branches }}`.split(' ');
+            const filtered = prString.split('\n').filter((pr) => {
+              if (!excluded.find((exc) => pr.includes(exc)))
+                  return pr;
+              }).join('\n')
+            const body = 'This PR was created by the Combine PRs action by combining the following PRs:\n' + filtered;
             await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
