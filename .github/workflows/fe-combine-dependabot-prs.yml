@@ -125,7 +125,7 @@ jobs:
           done
           
           git push origin $COMBINE_BRANCH_NAME
-          echo "::set-output name=excluded-branches::$EXCLUDED_BRANCHES"
+          echo "excluded-branches=$EXCLUDED_BRANCHES" >> $GITHUB_OUTPUT
           
       # Creates a PR with the new combined branch
       - uses: actions/github-script@v6
