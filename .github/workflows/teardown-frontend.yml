@@ -27,8 +27,8 @@ jobs:
           fi
           source environments/review.env
           STACKNAME=${PRODUCT}-pr-${{ github.event.pull_request.number }}
-          echo "::set-output name=stackname::$STACKNAME"
-          echo "::set-output name=cd_role::$CD_ROLE"
+          echo "stackname=$STACKNAME" >> $GITHUB_OUTPUT
+          echo "cd_role=$CD_ROLE" >> $GITHUB_OUTPUT
 
       - uses: strumwolf/delete-deployment-environment@v2
         with:
