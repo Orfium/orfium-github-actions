@@ -39,8 +39,8 @@ jobs:
           if [[ ${{ github.event_name }} == "pull_request" ]]; then
             ENV=review-${{ github.event.pull_request.number }}
           fi
-          echo "::set-output name=env-name::$ENV"
-          echo "::set-output name=url::https://${SUBDOMAIN}.${BASE_DOMAIN}"
+          echo "env-name=$ENV" >> $GITHUB_OUTPUT
+          echo "url=https://${SUBDOMAIN}.${BASE_DOMAIN}" >> $GITHUB_OUTPUT
 
   deploy-front-end:
     if: ${{ github.actor != 'dependabot[bot]' }}
@@ -77,15 +77,15 @@ jobs:
               STACKNAME=${PRODUCT}-pr-${{ github.event.pull_request.number }}
           fi
 
-          echo "::set-output name=version::$NODE_VERSION"
-          echo "::set-output name=csp_header::$CSP_HEADER"
-          echo "::set-output name=cd_role::$CD_ROLE"
-          echo "::set-output name=cfn_role::$CFN_ROLE"
-          echo "::set-output name=cert_arn::$CERT_ARN"
-          echo "::set-output name=domain::$BASE_DOMAIN"
-          echo "::set-output name=subdomain::$SUBDOMAIN"
-          echo "::set-output name=product::$PRODUCT"
-          echo "::set-output name=stackname::$STACKNAME"
+          echo "version=$NODE_VERSION" >> $GITHUB_OUTPUT
+          echo "csp_header=$CSP_HEADER" >> $GITHUB_OUTPUT
+          echo "cd_role=$CD_ROLE" >> $GITHUB_OUTPUT
+          echo "cfn_role=$CFN_ROLE" >> $GITHUB_OUTPUT
+          echo "cert_arn=$CERT_ARN" >> $GITHUB_OUTPUT
+          echo "domain=$BASE_DOMAIN" >> $GITHUB_OUTPUT
+          echo "subdomain=$SUBDOMAIN" >> $GITHUB_OUTPUT
+          echo "product=$PRODUCT" >> $GITHUB_OUTPUT
+          echo "stackname=$STACKNAME" >> $GITHUB_OUTPUT
 
       - name: Setup Node
         uses: actions/setup-node@v1
@@ -124,12 +124,12 @@ jobs:
           if aws cloudformation describe-stacks --stack-name $STACKNAME; then
             PARAMETER_CSP=$(aws cloudformation describe-stacks --stack-name $STACKNAME --query "Stacks[0].Parameters[?ParameterKey=='CSPHeaderValue'].ParameterValue" --output text)
             if [[ "$PARAMETER_CSP" == "${{ steps.config.outputs.csp_header }}" ]]; then
-              echo "::set-output name=create_or_update_stack::0";
+              echo "create_or_update_stack=0" >> $GITHUB_OUTPUT;
             else
-              echo "::set-output name=create_or_update_stack::1";
+              echo "create_or_update_stack=1" >> $GITHUB_OUTPUT;
             fi
           else
-            echo "::set-output name=create_or_update_stack::1";
+            echo "create_or_update_stack=1" >> $GITHUB_OUTPUT;
           fi
 
       - name: Set up S3-Cloudfront
