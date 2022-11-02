@@ -1,0 +1,131 @@
+name: Build and Deploy Infrastructure
+
+on:
+  workflow_call:
+    inputs:
+      app_image:
+        required: true
+        type: string
+      python_version:
+        required: true
+        type: string
+      environment_type:
+        required: true
+        type: string
+      VpcCIDR: 
+        required: false
+        type: string
+      PublicSubnet1CIDR:
+        required: false
+        type: string
+      PublicSubnet2CIDR: 
+        required: false
+        type: string
+      PrivateSubnet1CIDR: 
+        required: false
+        type: string
+      PrivateSubnet2CIDR:
+        required: false
+        type: string
+      InstanceType:
+        required: false
+        type: string
+      DBInstanceClass:
+        required: false
+        type: string
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python ${{ inputs.python_version }}
+        id: python-setup
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Set up yq tool
+        id: setup-yq
+        run: |
+          pip install yq
+
+      - name: Populate GitHub Env from environment files
+        id: populate-github-env
+        run: |
+          cat infra/environments/common.env >> $GITHUB_ENV
+          cat infra/environments/${{ inputs.environment_type }}.env >> $GITHUB_ENV
+
+      - name: Create Stack Name
+        id: create-stack-name
+        run: |
+          if [[ ${{ inputs.environment_type }} == "review" ]]; then
+            echo "STACK_NAME=$( echo ${{ env.ProductName }}-${{ github.event.pull_request.number }} )" >> $GITHUB_ENV
+          else
+            echo "STACK_NAME=$( echo ${{ env.ProductName }}-${{ inputs.environment_type }} )" >> $GITHUB_ENV
+          fi
+
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ env.AWS_CD_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Aggregate Parameter Overrides
+        id: aggregate-parameter-overrides
+        run: |
+          SAMCONFIG_OVERRIDES=$(tomlq '.${{ inputs.environment_type }}.deploy.parameters.parameter_overrides' infra/samconfig.toml | sed 's/\",/"/g;s/\s\s"//g;s/=/="/g;$ d' | tail -n +2 | tomlq '.')
+
+          vpc_cidr=${{ inputs.VpcCIDR }}
+          public_subnet1_cidr=${{ inputs.PublicSubnet1CIDR }}
+          public_subnet2_cidr=${{ inputs.PublicSubnet2CIDR }}
+          private_subnet1_cidr=${{ inputs.PrivateSubnet1CIDR }}
+          private_subnet2_cidr=${{ inputs.PrivateSubnet2CIDR }}
+          instance_type=${{ inputs.InstanceType }}
+          dbinstance_class=${{ inputs.DBInstanceClass }}
+
+          if [[ -z $vpc_cidr || -z $public_subnet1_cidr || -z $public_subnet2_cidr || -z $private_subnet1_cidr || -z $private_subnet2_cidr ]]; then
+            echo "Either all CIDR parameters must be configured or None at all"
+          else
+            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.VpcCIDR = "${{ inputs.VpcCIDR }}"')
+            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.PublicSubnet1CIDR = "${{ inputs.PublicSubnet1CIDR }}"')
+            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.PublicSubnet2CIDR = "${{ inputs.PublicSubnet2CIDR }}"')
+            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.PrivateSubnet1CIDR = "${{ inputs.PrivateSubnet1CIDR }}"')
+            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.PrivateSubnet2CIDR = "${{ inputs.PrivateSubnet2CIDR }}"')
+          fi
+
+          if [[ -z $instance_type ]]; then
+            echo "No Instance Type was given. The default will be used instead."
+          else
+            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.InstanceType = "${{ inputs.InstanceType }}"')
+          fi
+
+          if [[ -z $dbinstance_class ]]; then
+            echo "No Database Instance Class was given. The default will be used instead."
+          else
+            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.DBInstanceClass = "${{ inputs.DBInstanceClass }}"')
+          fi
+
+          echo "SAMCONFIG_OVERRIDES=$( echo $SAMCONFIG_OVERRIDES | jq '.' | jq -r 'to_entries | map(.key + "=" + .value) | join(",")')" >> $GITHUB_ENV
+
+      - name: Build and deploy SAM
+        id: sam-deploy
+        run: |
+          sed -i -e 's#s3_prefix.*#'s3_prefix\="\"${{ env.ProductName }}"\"'#g' infra/samconfig.toml
+          sed -i -e 's#ImageUri.*#'ImageUri\="${{ inputs.app_image }}"\",'#g' infra/samconfig.toml
+          cat infra/samconfig.toml
+          sam build -t infra/aws-deploy.yml
+          sam deploy \
+          --config-file infra/samconfig.toml \
+          --config-env ${{ inputs.environment_type }} \
+          --stack-name ${{ env.STACK_NAME }}
+          --role-arn ${{ env.AWS_CF_ROLE }} \
+          --parameter-overrides ${{ env.SAMCONFIG_OVERRIDES }} \
+          --no-fail-on-empty-changeset
