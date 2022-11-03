@@ -113,7 +113,13 @@ jobs:
             SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.DBInstanceClass = "${{ inputs.DBInstanceClass }}"')
           fi
 
-          echo "SAMCONFIG_OVERRIDES=$( echo $SAMCONFIG_OVERRIDES | jq '.' | jq -r 'to_entries | map(.key + "=" + .value) | join(",")')" >> $GITHUB_ENV
+          if test -f "infra/parameters.json"; then
+              echo $SAMCONFIG_OVERRIDES >> samconfig_overrides.json
+              PARAMETER_OVERRIDES=$( jq '. + input' infra/parameters.json samconfig_overrides.json )
+              echo "PARAMETER_OVERRIDES=$( echo $PARAMETER_OVERRIDES | jq '.' | jq -r 'to_entries | map(.key + "=" + .value) | join(",")')" >> $GITHUB_ENV
+          else
+              echo "PARAMETER_OVERRIDES=$( echo $SAMCONFIG_OVERRIDES | jq '.' | jq -r 'to_entries | map(.key + "=" + .value) | join(",")')" >> $GITHUB_ENV
+          fi
 
       - name: Build and deploy SAM
         id: sam-deploy
@@ -127,5 +133,5 @@ jobs:
           --config-env ${{ inputs.environment_type }} \
           --stack-name ${{ env.STACK_NAME }}
           --role-arn ${{ env.AWS_CF_ROLE }} \
-          --parameter-overrides ${{ env.SAMCONFIG_OVERRIDES }} \
+          --parameter-overrides ${{ env.PARAMETER_OVERRIDES }} \
           --no-fail-on-empty-changeset
