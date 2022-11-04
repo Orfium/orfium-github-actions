@@ -1,4 +1,4 @@
-name: Build and Deploy Infrastructure
+name: Deployment
 
 on:
   workflow_call:
@@ -12,6 +12,11 @@ on:
       environment_type:
         required: true
         type: string
+        options:
+          - production
+          - staging
+          - develop
+          - review
       VpcCIDR: 
         required: false
         type: string
