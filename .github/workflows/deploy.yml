@@ -3,40 +3,17 @@ name: Deployment
 on:
   workflow_call:
     inputs:
-      app_image:
-        required: true
-        type: string
       python_version:
         required: true
         type: string
-      environment_type:
+      environment_id:
         required: true
         type: string
-        options:
-          - production
-          - staging
-          - develop
-          - review
-      VpcCIDR: 
-        required: false
+      environment_suffix:
+        required: true
         type: string
-      PublicSubnet1CIDR:
-        required: false
-        type: string
-      PublicSubnet2CIDR: 
-        required: false
-        type: string
-      PrivateSubnet1CIDR: 
-        required: false
-        type: string
-      PrivateSubnet2CIDR:
-        required: false
-        type: string
-      InstanceType:
-        required: false
-        type: string
-      DBInstanceClass:
-        required: false
+      dynamic_cf_parameters:
+        required: true
         type: string
 
 jobs:
@@ -61,82 +38,50 @@ jobs:
         run: |
           pip install yq
 
-      - name: Populate GitHub Env from environment files
-        id: populate-github-env
+      - name: Extract Deployment Variables to Output
+        id: extract-deployment-envs
         run: |
-          cat infra/environments/common.env >> $GITHUB_ENV
-          cat infra/environments/${{ inputs.environment_type }}.env >> $GITHUB_ENV
+          set -o allexport
+          source infra/environments/common.env
+          source infra/environments/${{ inputs.environment_id }}.env
 
-      - name: Create Stack Name
-        id: create-stack-name
-        run: |
-          if [[ ${{ inputs.environment_type }} == "review" ]]; then
-            echo "STACK_NAME=$( echo ${{ env.ProductName }}-${{ github.event.pull_request.number }} )" >> $GITHUB_ENV
+          if [[ -z $ProductName || -z $AWS_REGION || -z $AWS_ACCOUNT_ID || -z $AWS_ACCOUNT_NAME || -z $AWS_CD_ROLE || -z $AWS_CF_ROLE ]]; then
+            echo -e "All necessary parameters must be defined, which are:\n- ProductName\n- AWS_REGION\n- AWS_ACCOUNT_ID\n- AWS_ACCOUNT_NAME\n- AWS_CD_ROLE\n- AWS_CF_ROLE"
+            exit 1
           else
-            echo "STACK_NAME=$( echo ${{ env.ProductName }}-${{ inputs.environment_type }} )" >> $GITHUB_ENV
+            echo "All necessary parameters are defined"
           fi
+
+          echo "ProductName=$ProductName" >> $GITHUB_OUTPUT
+          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_OUTPUT
+          echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID" >> $GITHUB_OUTPUT
+          echo "AWS_ACCOUNT_NAME=$AWS_ACCOUNT_NAME" >> $GITHUB_OUTPUT
+          echo "AWS_CD_ROLE=$AWS_CD_ROLE" >> $GITHUB_OUTPUT
+          echo "AWS_CF_ROLE=$AWS_CF_ROLE" >> $GITHUB_OUTPUT
+          echo "STACK_NAME=$( echo $ProductName-${{ inputs.environment_suffix }} )" >> $GITHUB_OUTPUT
 
       - name: Configure AWS Credentials
         id: configure-aws-creds
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: ${{ env.AWS_CD_ROLE }}
-          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ steps.extract-deployment-envs.outputs.AWS_CD_ROLE }}
+          aws-region: ${{ steps.extract-deployment-envs.outputs.AWS_REGION }}
 
-      - name: Aggregate Parameter Overrides
-        id: aggregate-parameter-overrides
+      - name: Combine CloudFormation Parameters
+        id: combine-cf-parameters
         run: |
-          SAMCONFIG_OVERRIDES=$(tomlq '.${{ inputs.environment_type }}.deploy.parameters.parameter_overrides' infra/samconfig.toml | sed 's/\",/"/g;s/\s\s"//g;s/=/="/g;$ d' | tail -n +2 | tomlq '.')
+          echo ${{ inputs.dynamic_cf_parameters }} | jq '.' >> dynamic_cf_parameters.json
+          echo "SAM_PARAMETERS=$( jq '. + input' infra/environments/${{ inputs.environment_id }}_cf_parameters.json dynamic_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(",")')" >> $GITHUB_OUTPUT
 
-          vpc_cidr=${{ inputs.VpcCIDR }}
-          public_subnet1_cidr=${{ inputs.PublicSubnet1CIDR }}
-          public_subnet2_cidr=${{ inputs.PublicSubnet2CIDR }}
-          private_subnet1_cidr=${{ inputs.PrivateSubnet1CIDR }}
-          private_subnet2_cidr=${{ inputs.PrivateSubnet2CIDR }}
-          instance_type=${{ inputs.InstanceType }}
-          dbinstance_class=${{ inputs.DBInstanceClass }}
-
-          if [[ -z $vpc_cidr || -z $public_subnet1_cidr || -z $public_subnet2_cidr || -z $private_subnet1_cidr || -z $private_subnet2_cidr ]]; then
-            echo "Either all CIDR parameters must be configured or None at all"
-          else
-            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.VpcCIDR = "${{ inputs.VpcCIDR }}"')
-            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.PublicSubnet1CIDR = "${{ inputs.PublicSubnet1CIDR }}"')
-            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.PublicSubnet2CIDR = "${{ inputs.PublicSubnet2CIDR }}"')
-            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.PrivateSubnet1CIDR = "${{ inputs.PrivateSubnet1CIDR }}"')
-            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.PrivateSubnet2CIDR = "${{ inputs.PrivateSubnet2CIDR }}"')
-          fi
-
-          if [[ -z $instance_type ]]; then
-            echo "No Instance Type was given. The default will be used instead."
-          else
-            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.InstanceType = "${{ inputs.InstanceType }}"')
-          fi
-
-          if [[ -z $dbinstance_class ]]; then
-            echo "No Database Instance Class was given. The default will be used instead."
-          else
-            SAMCONFIG_OVERRIDES=$(echo $SAMCONFIG_OVERRIDES | jq '.DBInstanceClass = "${{ inputs.DBInstanceClass }}"')
-          fi
-
-          if test -f "infra/parameters.json"; then
-              echo $SAMCONFIG_OVERRIDES >> samconfig_overrides.json
-              PARAMETER_OVERRIDES=$( jq '. + input' infra/parameters.json samconfig_overrides.json )
-              echo "PARAMETER_OVERRIDES=$( echo $PARAMETER_OVERRIDES | jq '.' | jq -r 'to_entries | map(.key + "=" + .value) | join(",")')" >> $GITHUB_ENV
-          else
-              echo "PARAMETER_OVERRIDES=$( echo $SAMCONFIG_OVERRIDES | jq '.' | jq -r 'to_entries | map(.key + "=" + .value) | join(",")')" >> $GITHUB_ENV
-          fi
-
-      - name: Build and deploy SAM
+      - name: Build and Deploy SAM
         id: sam-deploy
         run: |
-          sed -i -e 's#s3_prefix.*#'s3_prefix\="\"${{ env.ProductName }}"\"'#g' infra/samconfig.toml
-          sed -i -e 's#ImageUri.*#'ImageUri\="${{ inputs.app_image }}"\",'#g' infra/samconfig.toml
           cat infra/samconfig.toml
           sam build -t infra/aws-deploy.yml
           sam deploy \
           --config-file infra/samconfig.toml \
-          --config-env ${{ inputs.environment_type }} \
-          --stack-name ${{ env.STACK_NAME }}
-          --role-arn ${{ env.AWS_CF_ROLE }} \
-          --parameter-overrides ${{ env.PARAMETER_OVERRIDES }} \
+          --config-env ${{ inputs.environment_id }} \
+          --stack-name ${{ steps.extract-deployment-envs.outputs.STACK_NAME }}
+          --role-arn ${{ steps.extract-deployment-envs.outputs.AWS_CF_ROLE }} \
+          --parameter-overrides ${{ steps.combine-cf-parameters.outputs.SAM_PARAMETERS }} \
           --no-fail-on-empty-changeset
