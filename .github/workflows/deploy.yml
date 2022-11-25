@@ -1,0 +1,83 @@
+name: Deployment
+
+on:
+  workflow_call:
+    inputs:
+      python_version:
+        required: true
+        type: string
+      environment_id:
+        required: true
+        type: string
+      environment_suffix:
+        required: true
+        type: string
+      dynamic_cf_parameters:
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python "${{ inputs.python_version }}"
+        id: python-setup
+        uses: actions/setup-python@v4
+        with:
+          python-version: "${{ inputs.python_version }}"
+
+      - name: Extract Deployment Variables to Output
+        id: extract-deployment-envs
+        run: |
+          set -o allexport
+          source infra/environments/common.env
+          source infra/environments/${{ inputs.environment_id }}.env
+
+          if [[ -z $ProductName || -z $AWS_REGION || -z $AWS_ACCOUNT_ID || -z $AWS_ACCOUNT_NAME || -z $AWS_CD_ROLE || -z $AWS_CF_ROLE ]]; then
+            echo -e "All necessary parameters must be defined, which are:\n- ProductName\n- AWS_REGION\n- AWS_ACCOUNT_ID\n- AWS_ACCOUNT_NAME\n- AWS_CD_ROLE\n- AWS_CF_ROLE"
+            exit 1
+          else
+            echo "All necessary parameters are defined"
+          fi
+
+          echo "ProductName=$ProductName" >> $GITHUB_OUTPUT
+          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_OUTPUT
+          echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID" >> $GITHUB_OUTPUT
+          echo "AWS_ACCOUNT_NAME=$AWS_ACCOUNT_NAME" >> $GITHUB_OUTPUT
+          echo "AWS_CD_ROLE=$AWS_CD_ROLE" >> $GITHUB_OUTPUT
+          echo "AWS_CF_ROLE=$AWS_CF_ROLE" >> $GITHUB_OUTPUT
+          echo "STACK_NAME=$( echo $ProductName-${{ inputs.environment_suffix }} )" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ steps.extract-deployment-envs.outputs.AWS_CD_ROLE }}
+          aws-region: ${{ steps.extract-deployment-envs.outputs.AWS_REGION }}
+
+      - name: Combine CloudFormation Parameters
+        id: combine-cf-parameters
+        run: |
+          echo ${{ inputs.dynamic_cf_parameters }} | jq '.' >> dynamic_cf_parameters.json
+          # Merge 2 json inputs, and create a key-value string, like "key1=value1,key2=value2" 
+          echo "SAM_PARAMETERS=$( jq '. + input' infra/environments/${{ inputs.environment_id }}_cf_parameters.json dynamic_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(",")')" >> $GITHUB_OUTPUT
+
+      - name: Build and Deploy SAM
+        id: sam-deploy
+        run: |
+          cat infra/samconfig.toml
+          sam build -t infra/aws-deploy.yml
+          sam deploy \
+          --config-file infra/samconfig.toml \
+          --config-env ${{ inputs.environment_id }} \
+          --stack-name ${{ steps.extract-deployment-envs.outputs.STACK_NAME }}
+          --role-arn ${{ steps.extract-deployment-envs.outputs.AWS_CF_ROLE }} \
+          --parameter-overrides ${{ steps.combine-cf-parameters.outputs.SAM_PARAMETERS }} \
+          --no-fail-on-empty-changeset
