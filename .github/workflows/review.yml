@@ -78,7 +78,7 @@ jobs:
       - name: Add Heroku app to pipeline
         if: inputs.event_type == 'opened'
         run: heroku pipelines:add ${{ inputs.pipeline_name }} --app=${{ inputs.app_name }} --stage=development
-      - name: Copy env vars from staging environment
+      - name: Copy env vars from base environment
         if: inputs.event_type == 'opened'
         run: |
           heroku config --shell --app=${{ inputs.base_app_name }} > .env
