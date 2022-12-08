@@ -77,7 +77,7 @@ jobs:
           sam deploy \
           --config-file infra/samconfig.toml \
           --config-env ${{ inputs.environment_id }} \
-          --stack-name ${{ steps.extract-deployment-envs.outputs.STACK_NAME }}
+          --stack-name ${{ steps.extract-deployment-envs.outputs.STACK_NAME }} \
           --role-arn ${{ steps.extract-deployment-envs.outputs.AWS_CF_ROLE }} \
           --parameter-overrides ${{ steps.combine-cf-parameters.outputs.SAM_PARAMETERS }} \
           --no-fail-on-empty-changeset
