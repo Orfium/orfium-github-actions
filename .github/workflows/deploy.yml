@@ -67,7 +67,7 @@ jobs:
         run: |
           echo ${{ inputs.dynamic_cf_parameters }} | jq '.' >> dynamic_cf_parameters.json
           # Merge 2 json inputs, and create a key-value string, like "key1=value1,key2=value2" 
-          echo "SAM_PARAMETERS=$( jq '. + input' infra/environments/${{ inputs.environment_id }}_cf_parameters.json dynamic_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(",")')" >> $GITHUB_OUTPUT
+          echo "SAM_PARAMETERS=$( jq '. + input' infra/environments/${{ inputs.environment_id }}_cf_parameters.json dynamic_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')" >> $GITHUB_OUTPUT
 
       - name: Build and Deploy SAM
         id: sam-deploy
