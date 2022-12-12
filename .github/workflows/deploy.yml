@@ -89,7 +89,7 @@ jobs:
           if [[ -z $MAIN_CF_TEMPLATE ]]; then
             sam build -t infra/aws-deploy.yml
           else
-            sam build -t infra/${{ inputs.main_cf_template }}
+            sam build -t ${{ inputs.main_cf_template }}
 
           sam deploy \
           --config-file infra/samconfig.toml \
