@@ -13,7 +13,10 @@ on:
         required: true
         type: string
       dynamic_cf_parameters:
-        required: true
+        required: false
+        type: string
+      main_cf_template:
+        required: false
         type: string
 
 jobs:
@@ -63,17 +66,31 @@ jobs:
           aws-region: ${{ steps.extract-deployment-envs.outputs.AWS_REGION }}
 
       - name: Combine CloudFormation Parameters
+        Description: Merge 2 json inputs, and create a key-value string for SAM deployment, like "key1=value1 key2=value2" 
         id: combine-cf-parameters
         run: |
-          echo ${{ inputs.dynamic_cf_parameters }} | jq '.' >> dynamic_cf_parameters.json
-          # Merge 2 json inputs, and create a key-value string, like "key1=value1,key2=value2" 
-          echo "SAM_PARAMETERS=$( jq '. + input' infra/environments/${{ inputs.environment_id }}_cf_parameters.json dynamic_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')" >> $GITHUB_OUTPUT
+          DYNAMIC_CF_PARAMETERS=${{ inputs.dynamic_cf_parameters }}
+          if [[ -z $DYNAMIC_CF_PARAMETERS ]]; then
+            #Filter out the Parameters parent key if it exists and then produce SAM parameters
+            echo "SAM_PARAMETERS=$( jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')"
+          else
+            #Filter out the Parameters parent key if it exists, combine with dynamic parameters and then produce SAM parameters
+            jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json >> temp_cf_parameters.json
+            echo ${{ inputs.dynamic_cf_parameters }} | jq '.' >> dynamic_cf_parameters.json
+            echo "SAM_PARAMETERS=$( jq '. + input' temp_cf_parameters.json dynamic_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build and Deploy SAM
         id: sam-deploy
         run: |
           cat infra/samconfig.toml
-          sam build -t infra/aws-deploy.yml
+          
+          MAIN_CF_TEMPLATE=${{ inputs.main_cf_template }}
+          if [[ -z $MAIN_CF_TEMPLATE ]]; then
+            sam build -t infra/aws-deploy.yml
+          else
+            sam build -t infra/${{ inputs.main_cf_template }}
+
           sam deploy \
           --config-file infra/samconfig.toml \
           --config-env ${{ inputs.environment_id }} \
