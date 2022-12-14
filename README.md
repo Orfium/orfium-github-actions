@@ -116,7 +116,7 @@ with:
 The workflow expects a specific folder structure and naming scheme:
 * A main folder called "infra" that includes all the CloudFormation templates including the root/parent/main CloudFormation template and the samconfig.toml
 * The root/parent/main CloudFormation template, must be named "aws-deploy.yml". If there is a need to not use that one, another one can be passed through the "main_cf_template" workflow input that overwrites the default value. If it's a local file, the full file path must be provided.
-* A subfolder "infra/environments" that includes all the .env files and .json files that correspond with the environment_id naming scheme, plus, a "common.env" for global variables across environments, like the ProductName or even aws-region if it's the same across all different environments.
+* A subfolder "infra/environments" that includes all the .env files and .json files that correspond with the environment_id naming scheme, plus, an optional "common.env" file for global variables across environments, like the ProductName or even aws-region if it's the same across all different environments.
 * There should be only one samconfig file, called "samconfig.toml", with all the environment_types specified inside
 
 The infra's folder structure MUST look something like this:

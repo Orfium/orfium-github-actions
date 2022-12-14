@@ -40,7 +40,13 @@ jobs:
         id: extract-deployment-envs
         run: |
           set -o allexport
-          source infra/environments/common.env
+          
+          if [ -f "infra/environments/common.env" ]; then
+            source infra/environments/common.env
+          else
+            echo "No common.env file has been found. Disregarding it."
+          fi
+
           source infra/environments/${{ inputs.environment_id }}.env
 
           if [[ -z $ProductName || -z $AWS_REGION || -z $AWS_ACCOUNT_ID || -z $AWS_ACCOUNT_NAME || -z $AWS_CD_ROLE || -z $AWS_CF_ROLE ]]; then
