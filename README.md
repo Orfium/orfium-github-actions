@@ -85,6 +85,7 @@ deploy:
     environment_id: review
     environment_suffix: ${{ github.event.pull_request.number }}
     dynamic_cf_parameters: ${{ needs.build_app.outputs.json-string }}
+    stack_name: "airflow-example"
 ```
 * For the job name, you can leave it as shown above
 * The "needs" section depends on your CI's job names and job prerequisites
@@ -92,9 +93,10 @@ deploy:
 For the reusable workflow's inputs, there are 4 required ones:
 * python_version: The python version that will be used for workflow's commands
 * environment_id: The environment_id MUST match a pre-existing environment file and a pre-existing <environment_id>_cf_parameters.json, e.g. infra/environments/production.env + infra/environments/production_cf_parameters.json + environment_id: production.
-* environment_suffix: The suffix that is added to the product name ( which together form the stack name ) and some of the stack's resources as an identification. The recommendation is a) For review environments, to add the Pull Request number, b) for other environment types, to match the environment_id. Having said that, these are recommendations and anything meaningful can be added.
+* environment_suffix: (OPTIONAL) The suffix that is added to the stack name. The recommendation is a) For review environments, to add the Pull Request number, b) for other environment types, to match the environment_id. Having said that, these are recommendations and anything meaningful can be added.
 * dynamic_cf_parameters: (OPTIONAL) A stringified list of additional parameters that can be adedd to the sam deploy command. You can easily create such a string with a command like this:
 * main_cf_template: (OPTIONAL) The default file path of the main CloudFormation template is infra/aws-deploy.yml. If there is a need for a different filename, a file in a different path in the repo or a file from an S3 URI, you can overwrite by providing here the custom template.
+* stack_name: The name of the CloudFormation stack. If there is an environment_suffix, that is added to the end of the stack_name.
 ```
 app_image=hello
 test_custom_var_1=123456789012.dkr.ecr.us-east-1.amazonaws.com/test/flower:latest
