@@ -99,7 +99,7 @@ jobs:
         run: |
           cat infra/samconfig.toml
           
-          MAIN_CF_TEMPLATE=${{ inputs.main_cf_template }}
+          MAIN_CF_TEMPLATE='${{ inputs.main_cf_template }}'
           if [[ -z $MAIN_CF_TEMPLATE ]]; then
             sam build -t infra/aws-deploy.yml
           else
