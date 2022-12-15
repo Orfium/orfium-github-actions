@@ -81,7 +81,6 @@ jobs:
           aws-region: ${{ steps.extract-deployment-envs.outputs.AWS_REGION }}
 
       - name: Combine CloudFormation Parameters
-        Description: Merge 2 json inputs, and create a key-value string for SAM deployment, like "key1=value1 key2=value2" 
         id: combine-cf-parameters
         run: |
           DYNAMIC_CF_PARAMETERS=${{ inputs.dynamic_cf_parameters }}
