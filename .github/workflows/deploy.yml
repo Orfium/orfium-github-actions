@@ -83,7 +83,7 @@ jobs:
       - name: Combine CloudFormation Parameters
         id: combine-cf-parameters
         run: |
-          DYNAMIC_CF_PARAMETERS=${{ inputs.dynamic_cf_parameters }}
+          DYNAMIC_CF_PARAMETERS='${{ inputs.dynamic_cf_parameters }}'
           if [[ -z $DYNAMIC_CF_PARAMETERS ]]; then
             #Filter out the Parameters parent key if it exists and then produce SAM parameters
             echo "SAM_PARAMETERS=$( jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')" >> $GITHUB_OUTPUT
