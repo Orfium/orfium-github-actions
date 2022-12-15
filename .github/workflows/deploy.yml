@@ -86,7 +86,7 @@ jobs:
           DYNAMIC_CF_PARAMETERS=${{ inputs.dynamic_cf_parameters }}
           if [[ -z $DYNAMIC_CF_PARAMETERS ]]; then
             #Filter out the Parameters parent key if it exists and then produce SAM parameters
-            echo "SAM_PARAMETERS=$( jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')"
+            echo "SAM_PARAMETERS=$( jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')" >> $GITHUB_OUPUT
           else
             #Filter out the Parameters parent key if it exists, combine with dynamic parameters and then produce SAM parameters
             jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json >> temp_cf_parameters.json
