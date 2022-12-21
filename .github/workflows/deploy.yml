@@ -4,7 +4,8 @@ on:
   workflow_call:
     inputs:
       python_version:
-        required: true
+        required: false
+        default: '3.10'
         type: string
       environment_id:
         required: true

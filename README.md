@@ -91,7 +91,7 @@ deploy:
 * The "needs" section depends on your CI's job names and job prerequisites
 
 For the reusable workflow's inputs, there are 4 required ones:
-* python_version: The python version that will be used for workflow's commands
+* python_version: (OPTIONAL) The python version that will be used for workflow's commands
 * environment_id: The environment_id MUST match a pre-existing environment file and a pre-existing <environment_id>_cf_parameters.json, e.g. infra/environments/production.env + infra/environments/production_cf_parameters.json + environment_id: production.
 * environment_suffix: (OPTIONAL) The suffix that is added to the stack name. The recommendation is a) For review environments, to add the Pull Request number, b) for other environment types, to match the environment_id. Having said that, these are recommendations and anything meaningful can be added.
 * dynamic_cf_parameters: (OPTIONAL) A stringified list of additional parameters that can be adedd to the sam deploy command. You can easily create such a string with a command like this:
