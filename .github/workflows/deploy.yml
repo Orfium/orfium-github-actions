@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       python_version:
-        required: true
+        required: false
         type: string
       environment_id:
         required: true
@@ -33,11 +33,20 @@ jobs:
         id: checkout
         uses: actions/checkout@v3
 
-      - name: Set up Python "${{ inputs.python_version }}"
+      - name: Verify Python Version
+        id: verify-python
+        run: |
+          PYTHON_VERSION="${{ inputs.python_version }}"
+          if [[ -z $PYTHON_VERSION ]]; then
+            PYTHON_VERSION="3.10"
+          fi
+          echo "python-version=$PYTHON_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Python "${{ steps.verify-python.outputs.python-version }}"
         id: python-setup
         uses: actions/setup-python@v4
         with:
-          python-version: "${{ inputs.python_version }}"
+          python-version: "${{ steps.verify-python.outputs.python-version }}"
 
       - name: Extract Deployment Variables to Output
         id: extract-deployment-envs
