@@ -7,11 +7,11 @@ on:
         required: false
         default: '3.10'
         type: string
-      environment_suffix:
-        required: false
-        type: string
       environment_id:
         required: true
+        type: string
+      environment_suffix:
+        required: false
         type: string
       dynamic_cf_parameters:
         required: false
