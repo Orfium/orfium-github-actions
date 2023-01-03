@@ -102,7 +102,9 @@ jobs:
       - name: Build and Deploy SAM
         id: sam-deploy
         run: |
+          #Echo for verification before deployment
           cat infra/samconfig.toml
+          echo ${{ steps.combine-cf-parameters.outputs.SAM_PARAMETERS }}
 
           MAIN_TEMPLATE='${{ inputs.main_cf_template }}'
           if [[ -z $MAIN_TEMPLATE ]]; then
