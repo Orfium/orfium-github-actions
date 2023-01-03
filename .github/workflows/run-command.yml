@@ -1,0 +1,150 @@
+---
+name: Run Command
+
+on:
+  workflow_call:
+    inputs:
+      auth-role:
+        description: ""
+        required: true
+        type: string
+      region:
+        description: ""
+        required: true
+        type: string
+      cluster-arn:
+        description: ""
+        required: true
+        type: string
+      service-arn:
+        description: ""
+        required: true
+        type: string
+      command:
+        description: ""
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  run-command:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: "${{ inputs.auth-role }}"
+          aws-region: "${{ inputs.region }}"
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install Python Dependencies
+        run: pip install boto3
+
+      - name: Run Task With Command
+        shell: bash
+        run: |
+          python3 <<EOF
+          import json
+          import shlex
+          import sys
+
+          import boto3
+
+          ecs = boto3.client("ecs")
+
+
+          def find_main_container_name(cluster_arn, service_arn):
+              service = ecs.describe_services(services=[service_arn], cluster=cluster_arn)[
+                  "services"
+              ][0]
+              container_definitions = ecs.describe_task_definition(
+                  taskDefinition=service["taskDefinition"]
+              )["taskDefinition"]["containerDefinitions"]
+              essential_containers = [x for x in container_definitions if x["essential"]]
+              if (num_essential_containers := len(essential_containers)) != 1:
+                  raise Exception(
+                      f"Expected only one essential container, found {num_essential_containers}"
+                  )
+              container_name = essential_containers[0]["name"]
+              return container_name
+
+
+          def run_task(cluster_arn, service_arn, command, container_name):
+              service = ecs.describe_services(services=[service_arn], cluster=cluster_arn)[
+                  "services"
+              ][0]
+              task_definition = service["taskDefinition"]
+              network_configuration = service["networkConfiguration"]
+              overrides = {
+                  "containerOverrides": [
+                      {
+                          "name": container_name,
+                          "command": command,
+                      },
+                  ],
+              }
+              response = ecs.run_task(
+                  cluster=cluster_arn,
+                  taskDefinition=task_definition,
+                  launchType="FARGATE",
+                  networkConfiguration=network_configuration,
+                  overrides=overrides,
+                  count=1,
+              )
+              return response["tasks"][0]["taskArn"]
+
+
+          def wait_task(cluster_arn, task_arn):
+              waiter = ecs.get_waiter("tasks_stopped")
+              waiter.wait(
+                  cluster=cluster_arn,
+                  tasks=[task_arn],
+              )
+
+
+          def get_command_exit_code(cluster_arn, task_arn, container_name):
+              response = ecs.describe_tasks(
+                  cluster=cluster_arn,
+                  tasks=[task_arn],
+              )
+              command_exit_code = [
+                  x["exitCode"]
+                  for x in response["tasks"][0]["containers"]
+                  if x["name"] == container_name
+              ][0]
+              return command_exit_code
+
+
+          def main():
+              cluster_arn = "${{ inputs.cluster-arn }}"
+              service_arn = "${{ inputs.service-arn }}"
+              command = shlex.split('${{ inputs.command }}')
+
+              container_name = find_main_container_name(cluster_arn, service_arn)
+              task_arn = run_task(cluster_arn, service_arn, command, container_name)
+              print("Task started")
+
+              wait_task(cluster_arn, task_arn)
+              print("Task finished")
+
+              command_exit_code = get_command_exit_code(cluster_arn, task_arn, container_name)
+              if command_exit_code:
+                  print("Command failed")
+                  sys.exit(command_exit_code)
+
+              print("Command ran successfully")
+              sys.exit(0)
+
+
+          main()
+          EOF
