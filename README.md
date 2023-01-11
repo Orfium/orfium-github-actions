@@ -85,7 +85,7 @@ deploy:
     environment_id: review
     environment_suffix: ${{ github.event.pull_request.number }}
     dynamic_cf_parameters: ${{ needs.build_app.outputs.json-string }}
-    main_cf_template: ./infra/custom_master.yml
+    main_cf_template: infra/custom_master.yml
 ```
 * For the job name, you can leave it as shown above
 * The "needs" section depends on your CI's job names and job prerequisites
