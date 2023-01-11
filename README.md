@@ -85,7 +85,7 @@ deploy:
     environment_id: review
     environment_suffix: ${{ github.event.pull_request.number }}
     dynamic_cf_parameters: ${{ needs.build_app.outputs.json-string }}
-    stack_name: "airflow-example"
+    main_cf_template: ./infra/custom_master.yml
 ```
 * For the job name, you can leave it as shown above
 * The "needs" section depends on your CI's job names and job prerequisites
@@ -93,10 +93,9 @@ deploy:
 For the reusable workflow's inputs, there are 4 required ones:
 * python_version: (OPTIONAL) The python version that will be used for workflow's commands
 * environment_id: The environment_id MUST match a pre-existing environment file and a pre-existing <environment_id>_cf_parameters.json, e.g. infra/environments/production.env + infra/environments/production_cf_parameters.json + environment_id: production.
-* environment_suffix: (OPTIONAL) The suffix that is added to the stack name. The recommendation is a) For review environments, to add the Pull Request number, b) for other environment types, to match the environment_id. Having said that, these are recommendations and anything meaningful can be added.
+* environment_suffix: (OPTIONAL) The suffix that is added to the stack name along with the product name. The recommendation is a) For review environments, to add the Pull Request number, b) for other environment types, to match the environment_id. Having said that, these are recommendations and anything meaningful can be added. For production environments, we can leave it empty, as it will be the main environment and does not need a suffix. Moreover, it helps us make the assumption that if an environment does not have a suffix, it is the production environment and should be handled with more care than an ephemeral environment.
 * dynamic_cf_parameters: (OPTIONAL) A stringified list of additional parameters that can be adedd to the sam deploy command. You can easily create such a string with a command like this:
 * main_cf_template: (OPTIONAL) The default file path of the main CloudFormation template is infra/aws-deploy.yml. If there is a need for a different filename or a file in a different path in the repo you can overwrite by providing here the custom template.
-* stack_name: The name of the CloudFormation stack. If there is an environment_suffix, that is added to the end of the stack_name.
 ```
 app_image=hello
 test_custom_var_1=123456789012.dkr.ecr.us-east-1.amazonaws.com/test/flower:latest
@@ -142,3 +141,20 @@ total 36K
 -rw-r--r-- 1 user user  236 Nov  2 18:16 staging.env
 -rw-r--r-- 1 user user 1.2K Nov  9 16:44 staging_cf_parameters.json
 ```
+
+## Cloudformation Teardown
+You can add a job similar to this to your workflow for CloudFormation deployment:
+```yaml
+teardown-application:
+    needs:
+      - set-deployment-env
+    uses: Orfium/orfium-github-actions/.github/workflows/teardown-reusable.yml@master
+    with:
+      environment_id:  ${{ needs.set-deployment-env.outputs.env-id }}
+      environment_suffix: ${{ needs.set-deployment-env.outputs.env-suffix }}
+```
+The teardown reusable workflow handles the deletion of the cloudformations tack and all its resources. It also expects a folder structure same as the Deployment workflow above as it uses the same building blocks to find the proper stack name, AWS Account ID and IAM roles.
+
+You will need to feed 2 required parameters to the re-usable workflow:
+* environment_id: The environment_id, as mentioned above, MUST match a pre-existing environment file and a pre-existing <environment_id>_cf_parameters.json, e.g. infra/environments/production.env + infra/environments/production_cf_parameters.json + environment_id: production.
+* environment_suffix: Unlike above, here the environment suffix is mandatory, in order to extrapolate the stack-name from the combination of the ProductName and the Environment Suffix. Because that similar method is used above to create the stack name in the first place, it used again here to reliably predict the name of the stack that we want to be deleted.
