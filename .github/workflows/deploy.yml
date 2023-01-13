@@ -19,9 +19,6 @@ on:
       main_cf_template:
         required: false
         type: string
-      stack_name:
-        required: true
-        type: string
 
 jobs:
   deploy:
@@ -67,16 +64,21 @@ jobs:
           echo "AWS_CD_ROLE=$AWS_CD_ROLE" >> $GITHUB_OUTPUT
           echo "AWS_CF_ROLE=$AWS_CF_ROLE" >> $GITHUB_OUTPUT
 
+      - name: Construct Stack Name and Subdomain
+        id: construct-stackname-subdomain
+        run: |
           INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
           if [[ -z $INPUT_ENV_SUFFIX ]]; then
-            echo "STACK_NAME=$( echo ${{ inputs.stack_name }} )" >> $GITHUB_OUTPUT
+            echo "STACK_NAME=$( echo ${{ steps.extract-deployment-envs.outputs.ProductName }} )" >> $GITHUB_OUTPUT
+            echo "Subdomain=$( echo ${{ steps.extract-deployment-envs.outputs.ProductName }} )" >> $GITHUB_OUTPUT
           else
-            echo "STACK_NAME=$( echo ${{ inputs.stack_name }}-${{ inputs.environment_suffix }} )" >> $GITHUB_OUTPUT
+            echo "STACK_NAME=$( echo ${{ steps.extract-deployment-envs.outputs.ProductName }}-${{ inputs.environment_suffix }} )" >> $GITHUB_OUTPUT
+            echo "Subdomain=$( echo ${{ steps.extract-deployment-envs.outputs.ProductName }}-${{ inputs.environment_suffix }} )" >> $GITHUB_OUTPUT
           fi
 
       - name: Configure AWS Credentials
         id: configure-aws-creds
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v1-node16
         with:
           role-to-assume: ${{ steps.extract-deployment-envs.outputs.AWS_CD_ROLE }}
           aws-region: ${{ steps.extract-deployment-envs.outputs.AWS_REGION }}
@@ -87,18 +89,22 @@ jobs:
           DYNAMIC_CF_PARAMETERS='${{ inputs.dynamic_cf_parameters }}'
           if [[ -z $DYNAMIC_CF_PARAMETERS ]]; then
             #Filter out the Parameters parent key if it exists and then produce SAM parameters
-            echo "SAM_PARAMETERS=$( jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')" >> $GITHUB_OUTPUT
+            SAM_PARAMETERS=$( jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')
+            echo "SAM_PARAMETERS=$( echo $SAM_PARAMETERS Subdomain=${{ steps.construct-stackname-subdomain.outputs.STACK_NAME }}  ProductName=${{ steps.extract-deployment-envs.outputs.ProductName }})" >> $GITHUB_OUTPUT
           else
             #Filter out the Parameters parent key if it exists, combine with dynamic parameters and then produce SAM parameters
             jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json >> temp_cf_parameters.json
             echo ${{ inputs.dynamic_cf_parameters }} | jq '.' >> dynamic_cf_parameters.json
-            echo "SAM_PARAMETERS=$( jq '. + input' temp_cf_parameters.json dynamic_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')" >> $GITHUB_OUTPUT
+            SAM_PARAMETERS=$( jq '. + input' temp_cf_parameters.json dynamic_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')
+            echo "SAM_PARAMETERS=$( echo $SAM_PARAMETERS Subdomain=${{ steps.construct-stackname-subdomain.outputs.STACK_NAME }} ProductName=${{ steps.extract-deployment-envs.outputs.ProductName }})" >> $GITHUB_OUTPUT
           fi
 
       - name: Build and Deploy SAM
         id: sam-deploy
         run: |
+          #Echo for verification before deployment
           cat infra/samconfig.toml
+          echo ${{ steps.combine-cf-parameters.outputs.SAM_PARAMETERS }}
 
           MAIN_TEMPLATE='${{ inputs.main_cf_template }}'
           if [[ -z $MAIN_TEMPLATE ]]; then
@@ -110,7 +116,7 @@ jobs:
           sam deploy \
           --config-file infra/samconfig.toml \
           --config-env ${{ inputs.environment_id }} \
-          --stack-name ${{ steps.extract-deployment-envs.outputs.STACK_NAME }} \
+          --stack-name ${{ steps.construct-stackname-subdomain.outputs.STACK_NAME }} \
           --role-arn ${{ steps.extract-deployment-envs.outputs.AWS_CF_ROLE }} \
           --parameter-overrides ${{ steps.combine-cf-parameters.outputs.SAM_PARAMETERS }} \
           --no-fail-on-empty-changeset

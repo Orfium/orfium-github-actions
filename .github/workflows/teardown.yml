@@ -1,0 +1,148 @@
+run-name: Teardown
+
+on:
+  workflow_call:
+    inputs:
+      environment_id:
+        required: true
+        type: string
+      environment_suffix:
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        id: python-setup
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Extract Deployment Variables to Output
+        id: extract-deployment-envs
+        run: |
+          set -o allexport
+          
+          if [ -f "infra/environments/common.env" ]; then
+            source infra/environments/common.env
+          else
+            echo "No common.env file has been found. Disregarding it."
+          fi
+
+          source infra/environments/${{ inputs.environment_id }}.env
+
+          if [[ -z $ProductName || -z $AWS_REGION || -z $AWS_ACCOUNT_ID || -z $AWS_ACCOUNT_NAME || -z $AWS_CD_ROLE || -z $AWS_CF_ROLE ]]; then
+            echo -e "All necessary parameters must be defined, which are:\n- ProductName\n- AWS_REGION\n- AWS_ACCOUNT_ID\n- AWS_ACCOUNT_NAME\n- AWS_CD_ROLE\n- AWS_CF_ROLE"
+            exit 1
+          else
+            echo "All necessary parameters are defined"
+          fi
+
+          echo "ProductName=$ProductName" >> $GITHUB_OUTPUT
+          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_OUTPUT
+          echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID" >> $GITHUB_OUTPUT
+          echo "AWS_ACCOUNT_NAME=$AWS_ACCOUNT_NAME" >> $GITHUB_OUTPUT
+          echo "AWS_CD_ROLE=$AWS_CD_ROLE" >> $GITHUB_OUTPUT
+
+      - name: Construct Stack Name
+        id: construct-stackname
+        run: |
+          INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
+          if [[ -z $INPUT_ENV_SUFFIX ]]; then
+            echo "STACK_NAME=$( echo ${{ steps.extract-deployment-envs.outputs.ProductName }} )" >> $GITHUB_OUTPUT
+          else
+            echo "STACK_NAME=$( echo ${{ steps.extract-deployment-envs.outputs.ProductName }}-${{ inputs.environment_suffix }} )" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          role-to-assume: ${{ steps.extract-deployment-envs.outputs.AWS_CD_ROLE }}
+          aws-region: ${{ steps.extract-deployment-envs.outputs.AWS_REGION }}
+
+      - name: Check if Stack already exists
+        id: check-stack-exists
+        run: |
+          if aws cloudformation describe-stacks --stack-name ${{ steps.construct-stackname.outputs.STACK_NAME }}; then
+            echo "superstack_exists=1" >> $GITHUB_OUTPUT
+          else
+            echo "superstack_exists=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install Python Dependencies
+        if: steps.check-stack-exists.outputs.superstack_exists == 1
+        id: install-python-dependencies
+        run: pip install boto3
+
+      - name: Get the Bucket Names before Stack Deletion
+        if: steps.check-stack-exists.outputs.superstack_exists == 1
+        id: get-bucket-names
+        run: |
+          # Get bucket names before stack deletion and use the file to empty and delete the buckets after
+          # Using recursive to get the buckets in all nested stack no matter the depth
+          python3 <<EOF
+
+          import boto3
+
+          cfn = boto3.client('cloudformation')
+          s3 = boto3.resource('s3')
+
+          s3_bucket_list = []
+
+          def get_s3_bucket_names(stack_name):
+            response = cfn.list_stack_resources(StackName=stack_name)
+
+            s3_buckets = [resource for resource in response['StackResourceSummaries'] if resource['ResourceType'] == 'AWS::S3::Bucket']
+            stack_bucket_list = [bucket['PhysicalResourceId'] for bucket in s3_buckets]
+            s3_bucket_list.extend(stack_bucket_list)
+            nested_stacks = [resource for resource in response['StackResourceSummaries'] if resource['ResourceType'] == 'AWS::CloudFormation::Stack']
+
+            for nested_stack in nested_stacks:
+              nested_stack_name = nested_stack['PhysicalResourceId']
+              get_s3_bucket_names(nested_stack_name)
+
+          get_s3_bucket_names( "${{ steps.construct-stackname.outputs.STACK_NAME }}" )
+
+          with open("s3-bucket-list.txt", "w", encoding="utf-8") as f:
+              for bucket_name in s3_bucket_list:
+                  bucket = s3.Bucket(bucket_name)
+                  f.write(bucket.name)
+                  f.write("\n")
+
+          EOF
+
+      - name: Teardown Stack and Buckets
+        if: steps.check-stack-exists.outputs.superstack_exists == 1
+        id: teardown-stack-and-buckets
+        run: |
+          # Delete the Stack
+          echo "Deleting Stack ${{ steps.construct-stackname.outputs.STACK_NAME }}"
+          aws cloudformation delete-stack --stack-name ${{ steps.construct-stackname.outputs.STACK_NAME }}
+
+          # Delete all the s3 buckets
+          echo "Emptying and Deleting the leftover buckets"
+          python3 <<EOF
+
+          import boto3
+          
+          s3 = boto3.resource('s3')
+
+          with open("s3-bucket-list.txt", "r", encoding="utf-8") as f:
+          lines = f.readlines()
+          for line in lines:
+              bucket_name = line.strip()
+              bucket = s3.Bucket(bucket_name)
+              bucket.object_versions.delete()
+              bucket.delete()
+          
+          EOF
