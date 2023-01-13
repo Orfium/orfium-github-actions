@@ -127,7 +127,7 @@ jobs:
         run: |
           # Delete the Stack
           echo "Deleting Stack ${{ steps.construct-stackname.outputs.STACK_NAME }}"
-          # aws cloudformation delete-stack --stack-name ${{ steps.construct-stackname.outputs.STACK_NAME }}
+          aws cloudformation delete-stack --stack-name ${{ steps.construct-stackname.outputs.STACK_NAME }}
 
           # Delete all the s3 buckets
           echo "Emptying and Deleting the leftover buckets"
@@ -142,7 +142,7 @@ jobs:
           for line in lines:
               bucket_name = line.strip()
               bucket = s3.Bucket(bucket_name)
-              # bucket.object_versions.delete()
-              # bucket.delete()
+              bucket.object_versions.delete()
+              bucket.delete()
           
           EOF
