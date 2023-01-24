@@ -19,10 +19,14 @@ on:
       main_cf_template:
         required: false
         type: string
+      github-env-id:
+        required: false
+        type: string
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.github-env-id }}
     permissions:
       id-token: write
       contents: read

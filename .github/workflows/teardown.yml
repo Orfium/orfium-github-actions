@@ -9,6 +9,13 @@ on:
       environment_suffix:
         required: true
         type: string
+      github-env-id:
+        required: false
+        type: string
+    secrets:
+      REVIEW_TEARDOWN_TOKEN:
+        required: true
+        description: GitHub token inherited from invoker
 
 jobs:
   deploy:
@@ -147,3 +154,10 @@ jobs:
                   bucket.delete()
           
           EOF
+
+      - name: Delete GitHub Environment
+        if: ${{ inputs.github-env-id }}
+        uses: strumwolf/delete-deployment-environment@v2
+        with:
+          token: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
+          environment: ${{ inputs.github-env-id }}
