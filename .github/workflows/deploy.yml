@@ -52,7 +52,7 @@ jobs:
           
           echo "ProductName=$ProductName" >> $GITHUB_OUTPUT
 
-      - name: Construct Stack Name and Subdomain
+      - name: Construct Stack Name
         id: construct-stackname
         run: |
           INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
