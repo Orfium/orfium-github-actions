@@ -112,7 +112,7 @@ jobs:
           yarn build
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v1-node16
         with:
           role-to-assume: ${{ steps.config.outputs.cd_role }}
           aws-region: "us-east-1"
