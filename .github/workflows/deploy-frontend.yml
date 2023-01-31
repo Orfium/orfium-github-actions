@@ -129,17 +129,23 @@ jobs:
       - name: Check if deployment exists and is up to date
         id: check-stack-state
         run: |
-          STACKNAME=${{ steps.config.outputs.stackname }}
-          if aws cloudformation describe-stacks --stack-name $STACKNAME; then
-            PARAMETER_CSP=$(aws cloudformation describe-stacks --stack-name $STACKNAME --query "Stacks[0].Parameters[?ParameterKey=='CSPHeaderValue'].ParameterValue" --output text)
-            if [[ "$PARAMETER_CSP" == "${{ steps.config.outputs.csp_header }}" ]]; then
-              echo "create_or_update_stack=0" >> "$GITHUB_OUTPUT";
-            else
-              echo "create_or_update_stack=1" >> "$GITHUB_OUTPUT";
-            fi
-          else
-            echo "create_or_update_stack=1" >> "$GITHUB_OUTPUT";
+          # shellcheck disable=SC2016
+          stack=$(aws cloudformation describe-stacks --query 'Stacks[?StackName==`${{ steps.config.outputs.stackname }}`] | [0]')
+          # shellcheck disable=SC2016
+          stack_status=$(jq -r '.StackStatus' <(echo "$stack"))
+          # shellcheck disable=SC2016
+          parameter_csp=$(jq -r '.Parameters[]? | select(.ParameterKey=="CSPHeaderValue") | .ParameterValue' <(echo "$stack"))
+
+          # if stack is in ROLLBACK_COMPLETE we have to delete it manually
+          if [[ "$stack_status" == "ROLLBACK_COMPLETE" ]]; then
+            exit 1
           fi
+
+          create_or_update_stack=1
+          if [[ -n "${stack}" && "$parameter_csp" == "${{ steps.config.outputs.csp_header }}" && ("$stack_status" == "CREATE_COMPLETE" || "$stack_status" == "UPDATE_COMPLETE") ]]; then
+            create_or_update_stack=0
+          fi
+          echo "create_or_update_stack=$create_or_update_stack" >> "$GITHUB_OUTPUT";
 
       - name: Set up S3-Cloudfront
         if: steps.check-stack-state.outputs.create_or_update_stack == '1'
