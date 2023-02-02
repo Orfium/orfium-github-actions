@@ -57,9 +57,9 @@ jobs:
         run: |
           INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
           if [[ -z $INPUT_ENV_SUFFIX ]]; then
-            echo "STACK_NAME=$( echo ${{ steps.extract-deployment-envs.outputs.ProductName }} )" >> $GITHUB_OUTPUT
+            echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}" >> $GITHUB_OUTPUT
           else
-            echo "STACK_NAME=$( echo ${{ steps.extract-deployment-envs.outputs.ProductName }}-${{ inputs.environment_suffix }} )" >> $GITHUB_OUTPUT
+            echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}-${{ inputs.environment_suffix }}" >> $GITHUB_OUTPUT
           fi
   
   deploy:
