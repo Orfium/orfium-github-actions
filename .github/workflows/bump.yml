@@ -1,0 +1,25 @@
+on:
+  workflow_call:
+
+jobs:
+  bump:
+    if: "github.event_name == 'push' && github.ref == 'refs/heads/main'"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Install dependencies
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18.x'
+      
+      - name: Install dependencies
+        run: yarn install
+      
+      - name: Release
+        if: github.ref == 'refs/heads/main'
+        env:
+          ACTIONS_ALLOW_UNSECURE_COMMANDS: 'true'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release

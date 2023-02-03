@@ -1,0 +1,42 @@
+on:
+  workflow_call:
+    inputs:
+      COVERAGE_CACHE_DIR:
+        required: true
+        type: string
+    secrets:
+      SONAR_TOKEN:
+        required: true
+        type: string
+      SONAR_HOST_URL:
+        required: true
+        type: string
+
+jobs:
+  sonarqube:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Declare Coverage Cache Registry
+        id: coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.COVERAGE_CACHE_DIR }}
+          key: ${{ runner.os }}-coverage-reports-${{ github.sha }}
+      
+      - name: Check Out Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Retrieve Cached Coverage
+        run: mv ${{ env.COVERAGE_CACHE_DIR }}/coverage.xml ./coverage.xml
+      
+      - uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      
+      - uses: sonarsource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

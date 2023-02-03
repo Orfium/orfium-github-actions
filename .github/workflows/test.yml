@@ -1,0 +1,121 @@
+on:
+  workflow_call:
+    inputs:
+      BUILDX_LOCAL_CACHE_DIR:
+        required: false
+        type: string
+      LOCAL_APP_TAG:
+        required: true
+        type: string
+      COVERAGE_CACHE_DIR:
+        required: true
+        type: string
+      dockerfile:
+        required: true
+        type: string
+      target_environment:
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v3
+
+
+        - name: Build local image
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          file: ${{ inputs.dockerfile }}
+          target: ${{ inputs.target_environment }}
+          tags: ${{ inputs.LOCAL_APP_TAG }}
+          cache-to: type=local,dest=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}-new,mode=max
+      
+      - name: Build local image
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          file: ${{ inputs.dockerfile }}
+          target: ${{ inputs.target_environment }}
+          tags: ${{ inputs.LOCAL_APP_TAG }}
+      
+      - name: Build Image From Cache
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          load: true
+          file: ${{ inputs.dockerfile }}
+          target: ${{ inputs.target_environment }}
+          tags: ${{ inputs.LOCAL_APP_TAG }}
+          cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+
+      - name: Build Image
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          load: true
+          file: ${{ inputs.dockerfile }}
+          target: ${{ inputs.target_environment }}
+          tags: ${{ inputs.LOCAL_APP_TAG }}
+          cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+      
+      - name: Run tests
+        run: make test
+      
+      - name: Tear down the Stack
+        run: make down-volumes
+      
+      - name: Create Coverage Cache Registry
+        id: coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ inputs.COVERAGE_CACHE_DIR }}
+          key: ${{ runner.os }}-coverage-reports-${{ github.sha }}
+      
+      - name: Cache Coverage
+        run: |
+          mkdir -p ${{ inputs.COVERAGE_CACHE_DIR }}-new
+          mv coverage.xml ${{ inputs.COVERAGE_CACHE_DIR }}-new/coverage.xml
+      
+      - name: Refresh Coverage cache
+        run: |
+          rm -rf ${{ inputs.COVERAGE_CACHE_DIR }}
+          mv ${{ inputs.COVERAGE_CACHE_DIR }}-new ${{ inputs.COVERAGE_CACHE_DIR }}
+        # Temp fix
+        # https://github.com/docker/build-push-action/issues/252
+        # https://github.com/moby/buildkit/issues/1896
+      
+      - name: Manipulate coverage.txt file for GH
+        run: |
+          cat coverage.txt
+          cp coverage.txt report_for_gh.txt
+          echo "\`\`\`" >> report_for_gh.txt
+          sed -i '1i\`\`\`' report_for_gh.txt
+      
+      - name: Comment CC
+        if: ${{ github.actor != 'dependabot[bot]' }}
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          number: ${{ github.event.pull_request.number }}
+          path: report_for_gh.txt
+          recreate: true
+      
+      - name: Update Coverage badge
+        if: github.ref == 'refs/heads/main'
+        uses: Orfium/coverage-badge-creator@master
+        with:
+          upload_coverage_file: true
+          coverage_file: coverage.json
+          badge_name: "code-cov/${{ github.event.repository.name }}.svg"
+          bucket_name: "orfium-badges-bucket"
+          aws_access_key: ${{ secrets.BADGES_AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.BADGES_AWS_SECRET_ACCESS_KEY }}
+          coverage_percentage_json_path: "totals/percent_covered"

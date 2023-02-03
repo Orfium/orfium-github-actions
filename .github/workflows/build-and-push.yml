@@ -1,0 +1,89 @@
+on:
+  workflow_call:
+    inputs:
+      dockerfile:
+        required: true
+        type: string
+      target_environment:
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      ecr-image: ${{ steps.ecr-image-out.outputs.ECR_IMAGE }}
+      env-id: ${{ steps.set-environment.outputs.ENVIRONMENT_ID }}
+      env-suffix: ${{ steps.set-environment.outputs.ENVIRONMENT_SUFFIX }}
+      init-deployment: ${{ steps.check-init-deploy.outputs.INITIAL_DEPLOYMENT }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Set deployment env
+        id: set-environment
+        run: |
+          if [ ${{ github.event_name }} == 'pull_request' ]; then
+            echo "This is a review environment"
+            cat infra/environments/review.env >> $GITHUB_ENV
+            echo "ENVIRONMENT_ID=review" >> $GITHUB_OUTPUT
+            echo "ENVIRONMENT_SUFFIX=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "This is a production environment"
+            cat infra/environments/production.env >> $GITHUB_ENV
+            echo "ENVIRONMENT_ID=production" >> $GITHUB_OUTPUT
+            echo "ENVIRONMENT_SUFFIX=" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          role-to-assume: ${{ env.AWS_CD_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: false
+      
+      - name: Check if it's initial deployment
+        id: check-init-deploy
+        run: |
+          if [ ${{ github.event_name }} == 'pull_request' ]; then
+            echo "Checking if it's an initial deployment for ${{ env.ProductName }}-${{ github.event.pull_request.number }} stack"
+            if aws cloudformation describe-stacks --stack-name ${{ env.ProductName }}-${{ github.event.pull_request.number }}; then
+              echo "Deployment exists"
+              echo "INITIAL_DEPLOYMENT=false" >> $GITHUB_OUTPUT
+            else
+              echo "This is an initial deployment"
+              echo "INITIAL_DEPLOYMENT=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Checking if it's an initial deployment for ${{ env.ProductName }} stack"
+            if aws cloudformation describe-stacks --stack-name ${{ env.ProductName }}; then
+              echo "Deployment exists"
+              echo "INITIAL_DEPLOYMENT=false" >> $GITHUB_OUTPUT
+            else
+              echo "This is an initial deployment"
+              echo "INITIAL_DEPLOYMENT=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+      
+      - name: Login to ECR
+        uses: docker/login-action@v2
+        with:
+          registry: "${{ env.ECR_REGISTRY }}"
+      
+      - name: Build And Push Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}:${{ github.sha }}
+          cache-to: "type=inline"
+          file: ${{ inputs.dockerfile }}
+          target: ${{ inputs.target_environment }}
+      
+      - name: Output ECR image
+        id: ecr-image-out
+        shell: bash
+        run: |
+          ECR_IMAGE=${{ env.ECR_REGISTRY }}:${{ github.sha }}
+          echo "ECR_IMAGE=$ECR_IMAGE" >> $GITHUB_OUTPUT
+          echo "The ECR image arn is $ECR_IMAGE"

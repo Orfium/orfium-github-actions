@@ -1,0 +1,61 @@
+on:
+  workflow_call:
+    inputs:
+      BUILDX_LOCAL_CACHE_DIR:
+        required: false
+        type: string
+      LOCAL_APP_TAG:
+        required: true
+        type: string
+      dockerfile:
+        required: true
+        type: string
+      target_environment:
+        required: true
+        type: string
+
+jobs:
+  precommit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Set up Local Cache for Docker layers
+        uses: actions/cache@v3
+        with:
+          path: ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+          key: ${{ runner.os }}-buildx-local-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-local-
+
+      - name: Build local image
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          load: true
+          file: ${{ inputs.dockerfile }}
+          target: ${{ inputs.target_environment }}
+          tags: ${{ inputs.LOCAL_APP_TAG }}
+          cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+      
+      - name: Build local image
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          load: true
+          file: ${{ inputs.dockerfile }}
+          target: ${{ inputs.target_environment }}
+          tags: ${{ inputs.LOCAL_APP_TAG }}
+      
+      - name: Run pre commit
+        run: make pre-commit args="--all-files"
+      
+      - name: Tear down the Stack
+        run: make down-volumes
