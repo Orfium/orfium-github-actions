@@ -36,6 +36,8 @@ jobs:
       - name: Delete Cloudformation stack, S3 files and S3 bucket
         run: |
           STACKNAME=${{ env.PRODUCT }}-pr-${{ env.PR_NUMBER }}
+          # We want to use literal backticks in "--query", not trying to expand to something else
+          # shellcheck disable=SC2016
           S3_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name "$STACKNAME" --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' --output text)
-          aws cloudformation delete-stack --stack-name $STACKNAME
-          aws s3 rb s3://$S3_BUCKET_NAME --force
+          aws cloudformation delete-stack --stack-name "$STACKNAME"
+          aws s3 rb "s3://$S3_BUCKET_NAME" --force
