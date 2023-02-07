@@ -5,19 +5,16 @@ on:
   workflow_call:
     inputs:
       branchPrefix:
-        description: 'Branch prefix to find combinable PRs based on'
+        description: 'Branch prefix to find combinable PRs based on (use "dependabot" as default)'
         required: true
-        default: 'dependabot'
         type: string
       combineBranchName:
-        description: 'Name of the branch to combine PRs into'
+        description: 'Name of the branch to combine PRs into (use "combined-dependabot" as default)'
         required: true
-        default: 'combined-dependabot'
         type: string
       ignoreLabel:
-        description: 'Exclude PRs with this label'
+        description: 'Exclude PRs with this label (use "nocombine" as default)'
         required: true
-        default: 'nocombine'
         type: string
     secrets:
       token:
@@ -94,7 +91,7 @@ jobs:
           BRANCHES_TO_COMBINE: ${{ steps.fetch-branch-names.outputs.result }}
           COMBINE_BRANCH_NAME: ${{ github.event.inputs.combineBranchName }}
         run: |
-          git push origin --delete $COMBINE_BRANCH_NAME || echo "Deleted branch"
+          git push origin --delete "$COMBINE_BRANCH_NAME" || echo "Deleted branch"
           echo "${{steps.fetch-branch-names.outputs.result}}"
           sourcebranches="${BRANCHES_TO_COMBINE%\"}"
           sourcebranches="${sourcebranches#\"}"
@@ -105,28 +102,28 @@ jobs:
           git config pull.rebase false
           git config user.name github-actions
           git config user.email github-actions@github.com
-          
-          echo $sourcebranches
-          
-          git branch $COMBINE_BRANCH_NAME $basebranch
-          git checkout $COMBINE_BRANCH_NAME
-          
+
+          echo "$sourcebranches"
+
+          git branch "$COMBINE_BRANCH_NAME" "$basebranch"
+          git checkout "$COMBINE_BRANCH_NAME"
+
           EXCLUDED_BRANCHES=''
-                    
+
           for sourceBranch in $sourcebranches
           do
             {
-              git pull origin $sourceBranch --no-edit
+              git pull origin "$sourceBranch" --no-edit
             } || {
               git merge --abort
               echo "Failed branch is ${sourceBranch}"
               EXCLUDED_BRANCHES+="${sourceBranch} "
             }
           done
-          
-          git push origin $COMBINE_BRANCH_NAME
-          echo "excluded-branches=$EXCLUDED_BRANCHES" >> $GITHUB_OUTPUT
-          
+
+          git push origin "$COMBINE_BRANCH_NAME"
+          echo "excluded-branches=$EXCLUDED_BRANCHES" >> "$GITHUB_OUTPUT"
+
       # Creates a PR with the new combined branch
       - uses: actions/github-script@v6
         name: Create Combined Pull Request
