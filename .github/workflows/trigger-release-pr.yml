@@ -56,7 +56,7 @@ jobs:
         uses: actions/checkout@v3
       - name: Get current date
         id: date
-        run: echo "date=$(date +'%d/%m/%Y')" >> $GITHUB_OUTPUT
+        run: echo "date=$(date +'%d/%m/%Y')" >> "$GITHUB_OUTPUT"
       - name: Create release pull request
         uses: actions/github-script@v6
         with:
