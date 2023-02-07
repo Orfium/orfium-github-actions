@@ -1,0 +1,16 @@
+name: Orfium Github Actions CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - "**"
+
+jobs:
+  lint:
+    uses: ./.github/workflows/actionlint.yml
