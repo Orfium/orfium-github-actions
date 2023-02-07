@@ -4,16 +4,14 @@ on:
       BUILDX_LOCAL_CACHE_DIR:
         required: false
         type: string
-      LOCAL_APP_TAG:
-        required: true
-        type: string
       COVERAGE_CACHE_DIR:
         required: true
         type: string
-      dockerfile:
+      target_environment:
         required: true
         type: string
-      target_environment:
+    secrets:
+      PR_TOKEN:
         required: true
         type: string
 
@@ -24,15 +22,13 @@ jobs:
       - name: Checkout Code Repository
         uses: actions/checkout@v3
 
-
         - name: Build local image
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
         uses: docker/build-push-action@v3
         with:
           push: false
-          file: ${{ inputs.dockerfile }}
           target: ${{ inputs.target_environment }}
-          tags: ${{ inputs.LOCAL_APP_TAG }}
+          tags: ${{ github.event.repository.name }}
           cache-to: type=local,dest=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}-new,mode=max
       
       - name: Build local image
@@ -40,9 +36,8 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: false
-          file: ${{ inputs.dockerfile }}
           target: ${{ inputs.target_environment }}
-          tags: ${{ inputs.LOCAL_APP_TAG }}
+          tags: ${{ github.event.repository.name }}
       
       - name: Build Image From Cache
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
@@ -50,9 +45,8 @@ jobs:
         with:
           push: false
           load: true
-          file: ${{ inputs.dockerfile }}
           target: ${{ inputs.target_environment }}
-          tags: ${{ inputs.LOCAL_APP_TAG }}
+          tags: ${{ github.event.repository.name }}
           cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
 
       - name: Build Image
@@ -61,9 +55,8 @@ jobs:
         with:
           push: false
           load: true
-          file: ${{ inputs.dockerfile }}
           target: ${{ inputs.target_environment }}
-          tags: ${{ inputs.LOCAL_APP_TAG }}
+          tags: ${{ github.event.repository.name }}
           cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
       
       - name: Run tests
@@ -100,16 +93,16 @@ jobs:
           sed -i '1i\`\`\`' report_for_gh.txt
       
       - name: Comment CC
-        if: ${{ github.actor != 'dependabot[bot]' }}
+        if: github.actor != 'dependabot[bot]' && github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PR_TOKEN }}
           number: ${{ github.event.pull_request.number }}
           path: report_for_gh.txt
           recreate: true
       
       - name: Update Coverage badge
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: Orfium/coverage-badge-creator@master
         with:
           upload_coverage_file: true

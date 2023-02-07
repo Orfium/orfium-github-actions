@@ -4,12 +4,6 @@ on:
       BUILDX_LOCAL_CACHE_DIR:
         required: false
         type: string
-      LOCAL_APP_TAG:
-        required: true
-        type: string
-      dockerfile:
-        required: true
-        type: string
       target_environment:
         required: true
         type: string
@@ -43,9 +37,8 @@ jobs:
         with:
           push: false
           load: true
-          file: ${{ inputs.dockerfile }}
           target: ${{ inputs.target_environment }}
-          tags: ${{ inputs.LOCAL_APP_TAG }}
+          tags: ${{ github.event.repository.name }}
           cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
       
       - name: Build local image
@@ -54,9 +47,8 @@ jobs:
         with:
           push: false
           load: true
-          file: ${{ inputs.dockerfile }}
           target: ${{ inputs.target_environment }}
-          tags: ${{ inputs.LOCAL_APP_TAG }}
+          tags: ${{ github.event.repository.name }}
 
       - name: Create Swaggerhub Definition
         run: make swaggerhub
@@ -65,7 +57,7 @@ jobs:
         run: make down-volumes
 
       - name: Post to Swaggerhub
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         env:
           SWAGGERHUB_TOKEN: ${{ secrets.SWAGGERHUB_TOKEN }}
         run: |

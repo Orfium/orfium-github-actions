@@ -1,9 +1,13 @@
 on:
   workflow_call:
+    inputs:
+      RELEASE_TOKEN:
+        required: false
+        type: string
 
 jobs:
   bump:
-    if: "github.event_name == 'push' && github.ref == 'refs/heads/main'"
+    if: github.event_name == 'push' && ( github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -18,8 +22,6 @@ jobs:
         run: yarn install
       
       - name: Release
-        if: github.ref == 'refs/heads/main'
         env:
-          ACTIONS_ALLOW_UNSECURE_COMMANDS: 'true'
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: npx semantic-release

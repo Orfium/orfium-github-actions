@@ -1,9 +1,6 @@
 on:
   workflow_call:
     inputs:
-      dockerfile:
-        required: true
-        type: string
       target_environment:
         required: true
         type: string
@@ -77,7 +74,6 @@ jobs:
           push: true
           tags: ${{ env.ECR_REGISTRY }}:${{ github.sha }}
           cache-to: "type=inline"
-          file: ${{ inputs.dockerfile }}
           target: ${{ inputs.target_environment }}
       
       - name: Output ECR image
