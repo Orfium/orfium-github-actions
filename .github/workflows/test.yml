@@ -22,7 +22,7 @@ jobs:
       - name: Checkout Code Repository
         uses: actions/checkout@v3
 
-        - name: Build local image
+      - name: Build local image
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
         uses: docker/build-push-action@v3
         with:
