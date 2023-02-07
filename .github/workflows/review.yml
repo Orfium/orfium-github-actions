@@ -127,7 +127,9 @@ jobs:
         run: heroku git:remote --app=${{ inputs.app_name }}
       - name: Push to Heroku
         if: inputs.event_type != 'closed'
-        run: git push heroku ${{ github.head_ref }}:master --force
+        run: git push heroku "${HEAD_REF}:master" --force
+        env:
+          HEAD_REF: ${{ github.head_ref }}
       - name: Scale up formation
         if: inputs.event_type == 'opened'
         run: |
