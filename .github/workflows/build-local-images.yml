@@ -4,9 +4,6 @@ on:
       BUILDX_LOCAL_CACHE_DIR:
         required: false
         type: string
-      target_environment:
-        required: true
-        type: string
 
 jobs:
   build-local-images:
@@ -33,7 +30,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: false
-          target: ${{ inputs.target_environment }}
+          target: local
           tags: ${{ github.event.repository.name }}
           cache-to: type=local,dest=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}-new,mode=max
       
@@ -42,7 +39,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: false
-          target: ${{ inputs.target_environment }}
+          target: local
           tags: ${{ github.event.repository.name }}
       
       - name: Refresh Local cache

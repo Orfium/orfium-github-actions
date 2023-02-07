@@ -1,9 +1,5 @@
 on:
   workflow_call:
-    inputs:
-      target_environment:
-        required: true
-        type: string
 
 jobs:
   test:
@@ -74,7 +70,7 @@ jobs:
           push: true
           tags: ${{ env.ECR_REGISTRY }}:${{ github.sha }}
           cache-to: "type=inline"
-          target: ${{ inputs.target_environment }}
+          target: ${{ steps.check-init-deploy.outputs.ENVIRONMENT_ID }}
       
       - name: Output ECR image
         id: ecr-image-out

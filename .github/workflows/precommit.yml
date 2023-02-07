@@ -33,7 +33,7 @@ jobs:
         with:
           push: false
           load: true
-          target: ${{ inputs.target_environment }}
+          target: local
           tags: ${{ github.event.repository.name }}
           cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
       
@@ -43,7 +43,7 @@ jobs:
         with:
           push: false
           load: true
-          target: ${{ inputs.target_environment }}
+          target: local
           tags: ${{ github.event.repository.name }}
       
       - name: Run pre commit
