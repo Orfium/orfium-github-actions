@@ -51,10 +51,8 @@ jobs:
         run: pip install boto3
 
       - name: Run Task With Command
-        shell: bash
+        shell: python
         run: |
-          python3 <<EOF
-          import json
           import shlex
           import sys
 
@@ -147,4 +145,3 @@ jobs:
 
 
           main()
-          EOF
