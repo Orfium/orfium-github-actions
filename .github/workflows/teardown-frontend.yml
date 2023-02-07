@@ -27,8 +27,8 @@ jobs:
           fi
           source environments/review.env
           STACKNAME=${PRODUCT}-pr-${{ github.event.pull_request.number }}
-          echo "stackname=$STACKNAME" >> $GITHUB_OUTPUT
-          echo "cd_role=$CD_ROLE" >> $GITHUB_OUTPUT
+          echo "stackname=$STACKNAME" >> "$GITHUB_OUTPUT"
+          echo "cd_role=$CD_ROLE" >> "$GITHUB_OUTPUT"
 
       - uses: strumwolf/delete-deployment-environment@v2
         with:
@@ -46,9 +46,11 @@ jobs:
         run: |
           STACKNAME=${{ steps.config.outputs.stackname }}
           if aws cloudformation describe-stacks --stack-name $STACKNAME; then
+            # We want to use literal backticks in "--query", not trying to expand to something else
+            # shellcheck disable=SC2016
             S3_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name "$STACKNAME" --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' --output text)
-            aws cloudformation delete-stack --stack-name $STACKNAME
-            aws s3 rb s3://$S3_BUCKET_NAME --force
+            aws cloudformation delete-stack --stack-name "$STACKNAME"
+            aws s3 rb "s3://$S3_BUCKET_NAME" --force
           else
             echo "Stack $STACKNAME  does not exist. Skipping deletion"
           fi
