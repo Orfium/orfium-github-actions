@@ -1,6 +1,6 @@
 on:
   workflow_call:
-    inputs:
+    secrets:
       RELEASE_TOKEN:
         required: true
 
