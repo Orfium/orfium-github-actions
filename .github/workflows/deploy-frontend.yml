@@ -102,11 +102,11 @@ jobs:
 
       - name: Setup env, install dependencies, and build app
         run: |
+          set -o allexport
           # Load optional common configuration
           if [ -f environments/common.env ]; then
               source environments/common.env
           fi
-          set -o allexport
           source environments/${{ inputs.target-environment }}.env
           yarn install
           yarn build
