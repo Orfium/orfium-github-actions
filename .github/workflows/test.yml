@@ -10,7 +10,6 @@ on:
     secrets:
       PR_TOKEN:
         required: true
-        type: string
 
 jobs:
   test:

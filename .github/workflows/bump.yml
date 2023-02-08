@@ -2,8 +2,7 @@ on:
   workflow_call:
     inputs:
       RELEASE_TOKEN:
-        required: false
-        type: string
+        required: true
 
 jobs:
   bump:
