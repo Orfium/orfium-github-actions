@@ -7,10 +7,8 @@ on:
     secrets:
       SONAR_TOKEN:
         required: true
-        type: string
       SONAR_HOST_URL:
         required: true
-        type: string
 
 jobs:
   sonarqube:

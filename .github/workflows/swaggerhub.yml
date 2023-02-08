@@ -7,7 +7,6 @@ on:
     secrets:
       SWAGGERHUB_TOKEN:
         required: true
-        type: string
 
 jobs:
   test:
