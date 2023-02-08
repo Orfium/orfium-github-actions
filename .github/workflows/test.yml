@@ -7,9 +7,6 @@ on:
       COVERAGE_CACHE_DIR:
         required: true
         type: string
-      target_environment:
-        required: true
-        type: string
     secrets:
       PR_TOKEN:
         required: true

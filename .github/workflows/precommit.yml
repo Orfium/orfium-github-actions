@@ -4,9 +4,6 @@ on:
       BUILDX_LOCAL_CACHE_DIR:
         required: false
         type: string
-      target_environment:
-        required: true
-        type: string
 
 jobs:
   precommit:
