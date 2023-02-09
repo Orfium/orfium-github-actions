@@ -3,23 +3,23 @@ on:
     outputs:
       ecr-image:
         description: "The application's image" 
-        value: ${{ steps.ecr-image-out.outputs.ECR_IMAGE }}
+        value: ${{ jobs.build-and-push.outputs.ecr-image }}
       env-id:
         description: "The Environment Identifier" 
-        value: ${{ steps.set-environment.outputs.ENVIRONMENT_ID }}
+        value: ${{ jobs.build-and-push.outputs.env-id }}
       env-suffix:
         description: "The Environment Identifier" 
-        value: ${{ steps.set-environment.outputs.ENVIRONMENT_SUFFIX }}
+        value: ${{ jobs.build-and-push.outputs.env-suffix }}
       init-deployment:
         description: "The flag defining is it's an initial deployment or not" 
-        value: ${{ steps.check-init-deploy.outputs.INITIAL_DEPLOYMENT }}
+        value: ${{ jobs.build-and-push.outputs.init-deployment }}
 
 env:
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
 
 jobs:
-  test:
+  build-and-push:
     runs-on: ubuntu-latest
     outputs:
       ecr-image: ${{ steps.ecr-image-out.outputs.ECR_IMAGE }}
