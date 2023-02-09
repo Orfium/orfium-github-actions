@@ -22,11 +22,21 @@ jobs:
       - name: Checkout Code Repository
         uses: actions/checkout@v3
 
-      - name: Build local image
+      - name: Set up Local Cache for Docker layers
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: actions/cache@v3
+        with:
+          path: ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+          key: ${{ runner.os }}-buildx-local-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-local-
+
+      - name: Build local image from Cache
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
         uses: docker/build-push-action@v3
         with:
           push: false
+          load: true
           target: ${{ inputs.target_environment }}
           tags: ${{ github.event.repository.name }}
           cache-to: type=local,dest=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}-new,mode=max
@@ -36,28 +46,9 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: false
+          load: true
           target: ${{ inputs.target_environment }}
           tags: ${{ github.event.repository.name }}
-      
-      - name: Build Image From Cache
-        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
-        uses: docker/build-push-action@v3
-        with:
-          push: false
-          load: true
-          target: local
-          tags: ${{ github.event.repository.name }}
-          cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
-
-      - name: Build Image
-        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
-        uses: docker/build-push-action@v3
-        with:
-          push: false
-          load: true
-          target: local
-          tags: ${{ github.event.repository.name }}
-          cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
       
       - name: Run tests
         run: make test
