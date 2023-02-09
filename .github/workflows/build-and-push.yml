@@ -1,5 +1,18 @@
 on:
   workflow_call:
+    outputs:
+      ecr-image:
+        description: "The application's image" 
+        value: ${{ steps.ecr-image-out.outputs.ECR_IMAGE }}
+      env-id:
+        description: "The Environment Identifier" 
+        value: ${{ steps.set-environment.outputs.ENVIRONMENT_ID }}
+      env-suffix:
+        description: "The Environment Identifier" 
+        value: ${{ steps.set-environment.outputs.ENVIRONMENT_SUFFIX }}
+      init-deployment:
+        description: "The flag defining is it's an initial deployment or not" 
+        value: ${{ steps.check-init-deploy.outputs.INITIAL_DEPLOYMENT }}
 
 env:
   DOCKER_BUILDKIT: 1
