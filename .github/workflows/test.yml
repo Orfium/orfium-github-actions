@@ -87,15 +87,6 @@ jobs:
           echo "\`\`\`" >> report_for_gh.txt
           sed -i '1i\`\`\`' report_for_gh.txt
       
-      - name: Comment CC
-        if: github.actor != 'dependabot[bot]' && github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          GITHUB_TOKEN: ${{ secrets.PR_TOKEN }}
-          number: ${{ github.event.pull_request.number }}
-          path: report_for_gh.txt
-          recreate: true
-      
       - name: Update Coverage badge
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: Orfium/coverage-badge-creator@master
