@@ -96,7 +96,7 @@ jobs:
         run: |
           npm config set //npm.pkg.github.com/:_authToken ${{ secrets.ORG_PGP_TOKEN }}
           npm config set @orfium:registry https://npm.pkg.github.com
-          npm config set always-auth true
+          npm config set always-auth true || echo "This fails for versions > 18.13"
           yarn config set @orfium:registry https://npm.pkg.github.com
           yarn config set registry https://npm.pkg.github.com
 
