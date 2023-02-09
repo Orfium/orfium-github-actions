@@ -5,6 +5,10 @@ on:
         required: false
         type: string
 
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
 jobs:
   build-local-images:
     runs-on: ubuntu-latest
