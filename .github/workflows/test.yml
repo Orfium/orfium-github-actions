@@ -1,0 +1,100 @@
+on:
+  workflow_call:
+    inputs:
+      BUILDX_LOCAL_CACHE_DIR:
+        required: false
+        type: string
+      COVERAGE_CACHE_DIR:
+        required: true
+        type: string
+    secrets:
+      PR_TOKEN:
+        required: true
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Set up Local Cache for Docker layers
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: actions/cache@v3
+        with:
+          path: ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+          key: ${{ runner.os }}-buildx-local-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-local-
+
+      - name: Build local image from Cache
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          load: true
+          target: ${{ inputs.target_environment }}
+          tags: ${{ github.event.repository.name }}
+          cache-to: type=local,dest=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}-new,mode=max
+      
+      - name: Build local image
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          load: true
+          target: ${{ inputs.target_environment }}
+          tags: ${{ github.event.repository.name }}
+      
+      - name: Run tests
+        run: make test
+      
+      - name: Tear down the Stack
+        run: make down-volumes
+      
+      - name: Create Coverage Cache Registry
+        id: coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ inputs.COVERAGE_CACHE_DIR }}
+          key: ${{ runner.os }}-coverage-reports-${{ github.sha }}
+      
+      - name: Cache Coverage
+        run: |
+          mkdir -p ${{ inputs.COVERAGE_CACHE_DIR }}-new
+          mv coverage.xml ${{ inputs.COVERAGE_CACHE_DIR }}-new/coverage.xml
+      
+      - name: Refresh Coverage cache
+        run: |
+          rm -rf ${{ inputs.COVERAGE_CACHE_DIR }}
+          mv ${{ inputs.COVERAGE_CACHE_DIR }}-new ${{ inputs.COVERAGE_CACHE_DIR }}
+        # Temp fix
+        # https://github.com/docker/build-push-action/issues/252
+        # https://github.com/moby/buildkit/issues/1896
+      
+      - name: Manipulate coverage.txt file for GH
+        run: |
+          cat coverage.txt
+          cp coverage.txt report_for_gh.txt
+          echo "\`\`\`" >> report_for_gh.txt
+          sed -i '1i\`\`\`' report_for_gh.txt
+      
+      - name: Update Coverage badge
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: Orfium/coverage-badge-creator@master
+        with:
+          upload_coverage_file: true
+          coverage_file: coverage.json
+          badge_name: "code-cov/${{ github.event.repository.name }}.svg"
+          bucket_name: "orfium-badges-bucket"
+          aws_access_key: ${{ secrets.BADGES_AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.BADGES_AWS_SECRET_ACCESS_KEY }}
+          coverage_percentage_json_path: "totals/percent_covered"
