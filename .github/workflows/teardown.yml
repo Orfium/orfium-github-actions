@@ -15,7 +15,7 @@ on:
         description: GitHub token inherited from invoker
 
 jobs:
-  deploy:
+  teardown:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -132,6 +132,15 @@ jobs:
           except boto3exceptions.ClientError:
               print("Stack does not exist")
 
+      - name: Check if Stack was Deleted
+        id: check-stack-still-exists
+        run: |
+          if aws cloudformation describe-stacks --stack-name ${{ steps.construct-stackname.outputs.STACK_NAME }}; then
+            echo "superstack_still_exists=1" >> $GITHUB_OUTPUT
+          else
+            echo "superstack_still_exists=0" >> $GITHUB_OUTPUT
+          fi
+
       - name: Check Teardown Key Exists
         id: check-teardown-key-exists
         env:
@@ -146,7 +155,7 @@ jobs:
           fi
 
       - name: Delete GitHub Environment
-        if: steps.check-teardown-key-exists.outputs.teardown_key_exists == 1
+        if: steps.check-teardown-key-exists.outputs.teardown_key_exists == 1 && steps.check-stack-still-exists.outputs.superstack_still_exists == 0
         uses: strumwolf/delete-deployment-environment@v2
         with:
           token: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
