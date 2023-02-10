@@ -99,47 +99,43 @@ jobs:
           cfn = boto3.client("cloudformation")
           s3 = boto3.resource('s3')
 
-          STACK = "${{ steps.construct-stackname.outputs.STACK_NAME }}"
+          STACK = "todo-example-23"
+
           s3_bucket_list = []
 
           def get_s3_bucket_names(stack_name):
-              response = cfn.list_stack_resources(StackName=stack_name)
-              s3_buckets = [resource for resource in response['StackResourceSummaries'] if resource['ResourceType'] == 'AWS::S3::Bucket']
-              stack_bucket_list = [bucket['PhysicalResourceId'] for bucket in s3_buckets]
-              s3_bucket_list.extend(stack_bucket_list)
-              nested_stacks = [resource for resource in response['StackResourceSummaries'] if resource['ResourceType'] == 'AWS::CloudFormation::Stack']
-              for nested_stack in nested_stacks:
-                  nested_stack_name = nested_stack['PhysicalResourceId']
-                  get_s3_bucket_names(nested_stack_name)
+            response = cfn.list_stack_resources(StackName=stack_name)
+            s3_buckets = [resource for resource in response['StackResourceSummaries'] if resource['ResourceType'] == 'AWS::S3::Bucket']
+            stack_bucket_list = [bucket['PhysicalResourceId'] for bucket in s3_buckets]
+            s3_bucket_list.extend(stack_bucket_list)
+            nested_stacks = [resource for resource in response['StackResourceSummaries'] if resource['ResourceType'] == 'AWS::CloudFormation::Stack']
+            for nested_stack in nested_stacks:
+              nested_stack_name = nested_stack['PhysicalResourceId']
+              get_s3_bucket_names(nested_stack_name)
 
           try:
-              print ("Check if stack exists")
-              stack_response = cfn.describe_stacks(StackName=STACK)
-              print ("Get bucket names before stack deletion")
-              get_s3_bucket_names( STACK )
-              try:
-                  stack_deletion_response = cfn.delete_stack(StackName=STACK)
-                  print(f"Deleting stack {STACK}: {stack_deletion_response}")
+            print ("Check if stack exists")
+            stack_response = cfn.describe_stacks(StackName=STACK)
 
-                  print(f"Deleting stack's buckets")
-                  for bucket_name in s3_bucket_list:
-                      bucket = s3.Bucket(bucket_name)
-                      print (bucket.name)
-                      bucket.object_versions.delete()
-                      bucket.delete()
-              except boto3exceptions.ClientError:
-                  print("Stack cannot be deleted")
+            print ("Get bucket names before stack deletion")
+            get_s3_bucket_names( STACK )
+
+            try:
+              stack_deletion_response = cfn.delete_stack(StackName=STACK)
+              print(f"Deleting stack {STACK}: {stack_deletion_response}")
+
+              print("Deleting stack's buckets")
+              for bucket_name in s3_bucket_list:
+                bucket = s3.Bucket(bucket_name)
+                print (bucket.name)
+                bucket.object_versions.delete()
+                bucket.delete()
+            except boto3exceptions.ClientError:
+              print('Stack cannot be deleted')
+              raise
           except boto3exceptions.ClientError:
-              print("Stack does not exist")
-
-      - name: Check if Stack was Deleted
-        id: check-stack-still-exists
-        run: |
-          if aws cloudformation describe-stacks --stack-name ${{ steps.construct-stackname.outputs.STACK_NAME }}; then
-            echo "superstack_still_exists=1" >> $GITHUB_OUTPUT
-          else
-            echo "superstack_still_exists=0" >> $GITHUB_OUTPUT
-          fi
+            print('Stack does not exist')
+            raise
 
       - name: Check Teardown Key Exists
         id: check-teardown-key-exists
@@ -155,7 +151,7 @@ jobs:
           fi
 
       - name: Delete GitHub Environment
-        if: steps.check-teardown-key-exists.outputs.teardown_key_exists == 1 && steps.check-stack-still-exists.outputs.superstack_still_exists == 0
+        if: steps.check-teardown-key-exists.outputs.teardown_key_exists == 1
         uses: strumwolf/delete-deployment-environment@v2
         with:
           token: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
