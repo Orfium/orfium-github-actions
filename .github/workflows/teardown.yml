@@ -99,7 +99,7 @@ jobs:
           cfn = boto3.client("cloudformation")
           s3 = boto3.resource('s3')
 
-          STACK = "todo-example-23"
+          STACK = "${{ steps.construct-stackname.outputs.STACK_NAME }}"
 
           s3_bucket_list = []
 
