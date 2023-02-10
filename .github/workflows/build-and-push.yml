@@ -87,7 +87,7 @@ jobs:
           push: true
           tags: ${{ env.ECR_REGISTRY }}:${{ github.sha }}
           cache-to: "type=inline"
-          target: ${{ steps.check-init-deploy.outputs.ENVIRONMENT_ID }}
+          target: production
       
       - name: Output ECR image
         id: ecr-image-out
