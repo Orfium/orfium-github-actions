@@ -43,7 +43,7 @@ jobs:
           load: true
           target: local
           tags: ${{ github.event.repository.name }}
-          cache-to: type=local,dest=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}-new,mode=max
+          cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
       
       - name: Build local image
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
