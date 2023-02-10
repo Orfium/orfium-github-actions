@@ -5,7 +5,7 @@ on:
         required: false
         type: string
       COVERAGE_CACHE_DIR:
-        required: true
+        required: false
         type: string
     secrets:
       PR_TOKEN:
@@ -61,6 +61,7 @@ jobs:
         run: make down-volumes
       
       - name: Create Coverage Cache Registry
+        if: "${{ inputs.COVERAGE_CACHE_DIR != '' }}"
         id: coverage-cache
         uses: actions/cache@v3
         with:
@@ -68,11 +69,13 @@ jobs:
           key: ${{ runner.os }}-coverage-reports-${{ github.sha }}
       
       - name: Cache Coverage
+        if: "${{ inputs.COVERAGE_CACHE_DIR != '' }}"
         run: |
           mkdir -p ${{ inputs.COVERAGE_CACHE_DIR }}-new
           mv coverage.xml ${{ inputs.COVERAGE_CACHE_DIR }}-new/coverage.xml
       
       - name: Refresh Coverage cache
+        if: "${{ inputs.COVERAGE_CACHE_DIR != '' }}"
         run: |
           rm -rf ${{ inputs.COVERAGE_CACHE_DIR }}
           mv ${{ inputs.COVERAGE_CACHE_DIR }}-new ${{ inputs.COVERAGE_CACHE_DIR }}
