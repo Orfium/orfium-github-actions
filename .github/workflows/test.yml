@@ -41,7 +41,7 @@ jobs:
         with:
           push: false
           load: true
-          target: ${{ inputs.target_environment }}
+          target: local
           tags: ${{ github.event.repository.name }}
           cache-to: type=local,dest=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}-new,mode=max
       
@@ -51,7 +51,7 @@ jobs:
         with:
           push: false
           load: true
-          target: ${{ inputs.target_environment }}
+          target: local
           tags: ${{ github.event.repository.name }}
       
       - name: Run tests
