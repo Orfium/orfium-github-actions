@@ -35,12 +35,12 @@ jobs:
         run: |
           if [ ${{ github.event_name }} == 'pull_request' ]; then
             echo "This is a review environment"
-            cat infra/environments/review.env >> $GITHUB_ENV
+            cat infra/environments/review.env >> "$GITHUB_ENV"
             echo "ENVIRONMENT_ID=review" >> "$GITHUB_OUTPUT"
             echo "ENVIRONMENT_SUFFIX=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
           else
             echo "This is a production environment"
-            cat infra/environments/production.env >> $GITHUB_ENV
+            cat infra/environments/production.env >> "$GITHUB_ENV"
             echo "ENVIRONMENT_ID=production" >> "$GITHUB_OUTPUT"
             echo "ENVIRONMENT_SUFFIX=" >> "$GITHUB_OUTPUT"
           fi
@@ -60,19 +60,19 @@ jobs:
             echo "Checking if it's an initial deployment for ${{ env.ProductName }}-${{ github.event.pull_request.number }} stack"
             if aws cloudformation describe-stacks --stack-name ${{ env.ProductName }}-${{ github.event.pull_request.number }}; then
               echo "Deployment exists"
-              echo "INITIAL_DEPLOYMENT=false" >> $GITHUB_OUTPUT
+              echo "INITIAL_DEPLOYMENT=false" >> "$GITHUB_OUTPUT"
             else
               echo "This is an initial deployment"
-              echo "INITIAL_DEPLOYMENT=true" >> $GITHUB_OUTPUT
+              echo "INITIAL_DEPLOYMENT=true" >> "$GITHUB_OUTPUT"
             fi
           else
             echo "Checking if it's an initial deployment for ${{ env.ProductName }} stack"
             if aws cloudformation describe-stacks --stack-name ${{ env.ProductName }}; then
               echo "Deployment exists"
-              echo "INITIAL_DEPLOYMENT=false" >> $GITHUB_OUTPUT
+              echo "INITIAL_DEPLOYMENT=false" >> "$GITHUB_OUTPUT"
             else
               echo "This is an initial deployment"
-              echo "INITIAL_DEPLOYMENT=true" >> $GITHUB_OUTPUT
+              echo "INITIAL_DEPLOYMENT=true" >> "$GITHUB_OUTPUT"
             fi
           fi
       
@@ -94,5 +94,5 @@ jobs:
         shell: bash
         run: |
           ECR_IMAGE=${{ env.ECR_REGISTRY }}:${{ github.sha }}
-          echo "ECR_IMAGE=$ECR_IMAGE" >> $GITHUB_OUTPUT
+          echo "ECR_IMAGE=$ECR_IMAGE" >> "$GITHUB_OUTPUT"
           echo "The ECR image arn is $ECR_IMAGE"
