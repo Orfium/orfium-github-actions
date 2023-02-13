@@ -1,0 +1,65 @@
+on:
+  workflow_call:
+    inputs:
+      BUILDX_LOCAL_CACHE_DIR:
+        required: false
+        type: string
+    secrets:
+      SWAGGERHUB_TOKEN:
+        required: true
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Set up Local Cache for Docker layers
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: actions/cache@v3
+        with:
+          path: ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+          key: ${{ runner.os }}-buildx-local-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-local-
+
+      - name: Build Image from Cache
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          load: true
+          target: local
+          tags: ${{ github.event.repository.name }}
+          cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+      
+      - name: Build local image
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          load: true
+          target: local
+          tags: ${{ github.event.repository.name }}
+
+      - name: Create Swaggerhub Definition
+        run: make swaggerhub
+
+      - name: Tear down the Stack
+        run: make down-volumes
+
+      - name: Post to Swaggerhub
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        env:
+          SWAGGERHUB_TOKEN: ${{ secrets.SWAGGERHUB_TOKEN }}
+        run: |
+          curl -X POST "https://api.swaggerhub.com/apis/OrfiumTeam/${{ github.event.repository.name }}" -H "Authorization: $SWAGGERHUB_TOKEN" -H "Content-Type: application/yaml" --data-binary "@test.yaml"

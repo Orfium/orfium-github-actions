@@ -35,7 +35,7 @@ jobs:
         id: extract-deployment-envs
         run: |
           set -o allexport
-          
+
           if [ -f "infra/environments/common.env" ]; then
             source infra/environments/common.env
           else
@@ -51,20 +51,21 @@ jobs:
             echo "All necessary parameters are defined"
           fi
 
-          echo "ProductName=$ProductName" >> $GITHUB_OUTPUT
-          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_OUTPUT
-          echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID" >> $GITHUB_OUTPUT
-          echo "AWS_ACCOUNT_NAME=$AWS_ACCOUNT_NAME" >> $GITHUB_OUTPUT
-          echo "AWS_CD_ROLE=$AWS_CD_ROLE" >> $GITHUB_OUTPUT
+          # shellcheck disable=SC2129
+          echo "ProductName=$ProductName" >> "$GITHUB_OUTPUT"
+          echo "AWS_REGION=$AWS_REGION" >> "$GITHUB_OUTPUT"
+          echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+          echo "AWS_ACCOUNT_NAME=$AWS_ACCOUNT_NAME" >> "$GITHUB_OUTPUT"
+          echo "AWS_CD_ROLE=$AWS_CD_ROLE" >> "$GITHUB_OUTPUT"
 
       - name: Construct Stack Name
         id: construct-stackname
         run: |
           INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
           if [[ -z $INPUT_ENV_SUFFIX ]]; then
-            echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}" >> $GITHUB_OUTPUT
+            echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}" >> "$GITHUB_OUTPUT"
           else
-            echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}-${{ inputs.environment_suffix }}" >> $GITHUB_OUTPUT
+            echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Configure AWS Credentials
@@ -78,9 +79,9 @@ jobs:
         id: check-stack-exists
         run: |
           if aws cloudformation describe-stacks --stack-name ${{ steps.construct-stackname.outputs.STACK_NAME }}; then
-            echo "superstack_exists=1" >> $GITHUB_OUTPUT
+            echo "superstack_exists=1" >> "$GITHUB_OUTPUT"
           else
-            echo "superstack_exists=0" >> $GITHUB_OUTPUT
+            echo "superstack_exists=0" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install Python Dependencies
@@ -144,10 +145,10 @@ jobs:
         run: |
           if [[ -z $REVIEW_TEARDOWN_TOKEN ]]; then
             echo "Teardown token was not provided. Nothing else to do"
-            echo "teardown_key_exists=0" >> $GITHUB_OUTPUT
+            echo "teardown_key_exists=0" >> "$GITHUB_OUTPUT"
           else
             echo "Teardown token was provided. Deleting GitHub Environment"
-            echo "teardown_key_exists=1" >> $GITHUB_OUTPUT
+            echo "teardown_key_exists=1" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Delete GitHub Environment
@@ -155,4 +156,4 @@ jobs:
         uses: strumwolf/delete-deployment-environment@v2
         with:
           token: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
-          environment: ${{ steps.construct-stackname.outputs.STACK_NAME }}      
+          environment: ${{ steps.construct-stackname.outputs.STACK_NAME }}

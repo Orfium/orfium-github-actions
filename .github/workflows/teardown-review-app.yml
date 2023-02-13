@@ -29,13 +29,15 @@ jobs:
           environment: review-${{ env.PR_NUMBER }}
           onlyRemoveDeployments: true
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v1-node16
         with:
           role-to-assume: arn:aws:iam::102867326982:role/GithubDevCDRole
           aws-region: "us-east-1"
       - name: Delete Cloudformation stack, S3 files and S3 bucket
         run: |
           STACKNAME=${{ env.PRODUCT }}-pr-${{ env.PR_NUMBER }}
+          # We want to use literal backticks in "--query", not trying to expand to something else
+          # shellcheck disable=SC2016
           S3_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name "$STACKNAME" --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' --output text)
-          aws cloudformation delete-stack --stack-name $STACKNAME
-          aws s3 rb s3://$S3_BUCKET_NAME --force
+          aws cloudformation delete-stack --stack-name "$STACKNAME"
+          aws s3 rb "s3://$S3_BUCKET_NAME" --force
