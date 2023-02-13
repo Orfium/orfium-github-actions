@@ -50,16 +50,16 @@ jobs:
             echo "All necessary parameters are defined"
           fi
           
-          echo "ProductName=$ProductName" >> $GITHUB_OUTPUT
+          echo "ProductName=$ProductName" >> "$GITHUB_OUTPUT"
 
       - name: Construct Stack Name
         id: construct-stackname
         run: |
           INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
           if [[ -z $INPUT_ENV_SUFFIX ]]; then
-            echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}" >> $GITHUB_OUTPUT
+            echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}" >> "$GITHUB_OUTPUT"
           else
-            echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}-${{ inputs.environment_suffix }}" >> $GITHUB_OUTPUT
+            echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
           fi
   
   deploy:
@@ -135,14 +135,14 @@ jobs:
             #Filter out the Parameters parent key if it exists and then produce SAM parameters
             SAM_PARAMETERS=$( jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')
             #We construct the subdomain based on the stack name for consistency and predictability of domain names
-            echo "SAM_PARAMETERS=$SAM_PARAMETERS Subdomain=${{ needs.set-environment-variables.outputs.stack-name }} ProductName=${{ steps.extract-deployment-envs.outputs.ProductName }}" >> $GITHUB_OUTPUT
+            echo "SAM_PARAMETERS=$SAM_PARAMETERS Subdomain=${{ needs.set-environment-variables.outputs.stack-name }} ProductName=${{ steps.extract-deployment-envs.outputs.ProductName }}" >> "$GITHUB_OUTPUT"
           else
             #Filter out the Parameters parent key if it exists, combine with dynamic parameters and then produce SAM parameters
             jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json >> temp_cf_parameters.json
             echo ${{ inputs.dynamic_cf_parameters }} | jq '.' >> dynamic_cf_parameters.json
             SAM_PARAMETERS=$( jq '. + input' temp_cf_parameters.json dynamic_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')
             #We construct the subdomain based on the stack name for consistency and predictability of domain names
-            echo "SAM_PARAMETERS=$SAM_PARAMETERS Subdomain=${{ needs.set-environment-variables.outputs.stack-name }} ProductName=${{ steps.extract-deployment-envs.outputs.ProductName }}" >> $GITHUB_OUTPUT
+            echo "SAM_PARAMETERS=$SAM_PARAMETERS Subdomain=${{ needs.set-environment-variables.outputs.stack-name }} ProductName=${{ steps.extract-deployment-envs.outputs.ProductName }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build and Deploy SAM
