@@ -9,9 +9,13 @@ on:
       environment_suffix:
         required: true
         type: string
+    secrets:
+      REVIEW_TEARDOWN_TOKEN:
+        required: false
+        description: GitHub token inherited from invoker
 
 jobs:
-  deploy:
+  teardown:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -29,6 +33,8 @@ jobs:
 
       - name: Extract Deployment Variables to Output
         id: extract-deployment-envs
+        env:
+          REVIEW_TEARDOWN_TOKEN: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
         run: |
           set -o allexport
 
@@ -53,6 +59,15 @@ jobs:
           echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID" >> "$GITHUB_OUTPUT"
           echo "AWS_ACCOUNT_NAME=$AWS_ACCOUNT_NAME" >> "$GITHUB_OUTPUT"
           echo "AWS_CD_ROLE=$AWS_CD_ROLE" >> "$GITHUB_OUTPUT"
+
+          # Check if Teardown Key was provided
+          if [[ -z $REVIEW_TEARDOWN_TOKEN ]]; then
+            echo "Teardown token was not provided. Nothing else to do"
+            echo "teardown_key_exists=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "Teardown token was provided. Deleting GitHub Environment"
+            echo "teardown_key_exists=1" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Construct Stack Name
         id: construct-stackname
@@ -85,66 +100,58 @@ jobs:
         id: install-python-dependencies
         run: pip install boto3
 
-      - name: Get the Bucket Names before Stack Deletion
+      - name: Teardown Stack and Buckets
         if: steps.check-stack-exists.outputs.superstack_exists == 1
-        id: get-bucket-names
+        id: teardown-stack-and-buckets
+        shell: python
         run: |
-          # Get bucket names before stack deletion and use the file to empty and delete the buckets after
-          # Using recursive to get the buckets in all nested stack no matter the depth
-          python3 <<EOF
-
           import boto3
+          import botocore.exceptions as boto3exceptions
 
-          cfn = boto3.client('cloudformation')
+          cfn = boto3.client("cloudformation")
           s3 = boto3.resource('s3')
+
+          STACK = "${{ steps.construct-stackname.outputs.STACK_NAME }}"
 
           s3_bucket_list = []
 
           def get_s3_bucket_names(stack_name):
             response = cfn.list_stack_resources(StackName=stack_name)
-
             s3_buckets = [resource for resource in response['StackResourceSummaries'] if resource['ResourceType'] == 'AWS::S3::Bucket']
             stack_bucket_list = [bucket['PhysicalResourceId'] for bucket in s3_buckets]
             s3_bucket_list.extend(stack_bucket_list)
             nested_stacks = [resource for resource in response['StackResourceSummaries'] if resource['ResourceType'] == 'AWS::CloudFormation::Stack']
-
             for nested_stack in nested_stacks:
               nested_stack_name = nested_stack['PhysicalResourceId']
               get_s3_bucket_names(nested_stack_name)
 
-          get_s3_bucket_names( "${{ steps.construct-stackname.outputs.STACK_NAME }}" )
+          try:
+            print ("Check if stack exists")
+            stack_response = cfn.describe_stacks(StackName=STACK)
 
-          with open("s3-bucket-list.txt", "w", encoding="utf-8") as f:
+            print ("Get bucket names before stack deletion")
+            get_s3_bucket_names( STACK )
+
+            try:
+              stack_deletion_response = cfn.delete_stack(StackName=STACK)
+              print(f"Deleting stack {STACK}: {stack_deletion_response}")
+
+              print("Deleting stack's buckets")
               for bucket_name in s3_bucket_list:
-                  bucket = s3.Bucket(bucket_name)
-                  print(bucket.name)
-                  f.write(bucket.name)
-                  f.write("\n")
+                bucket = s3.Bucket(bucket_name)
+                print (bucket.name)
+                bucket.object_versions.delete()
+                bucket.delete()
+            except boto3exceptions.ClientError:
+              print('Stack cannot be deleted')
+              raise
+          except boto3exceptions.ClientError:
+            print('Stack does not exist')
+            raise
 
-          EOF
-
-      - name: Teardown Stack and Buckets
-        if: steps.check-stack-exists.outputs.superstack_exists == 1
-        id: teardown-stack-and-buckets
-        run: |
-          # Delete the Stack
-          echo "Deleting Stack ${{ steps.construct-stackname.outputs.STACK_NAME }}"
-          aws cloudformation delete-stack --stack-name ${{ steps.construct-stackname.outputs.STACK_NAME }}
-
-          # Delete all the s3 buckets
-          echo "Emptying and Deleting the leftover buckets"
-          python3 <<EOF
-
-          import boto3
-
-          s3 = boto3.resource('s3')
-
-          with open("s3-bucket-list.txt", "r", encoding="utf-8") as f:
-              lines = f.readlines()
-              for line in lines:
-                  bucket_name = line.strip()
-                  bucket = s3.Bucket(bucket_name)
-                  bucket.object_versions.delete()
-                  bucket.delete()
-
-          EOF
+      - name: Delete GitHub Environment
+        if: steps.extract-deployment-envs.outputs.teardown_key_exists == 1
+        uses: strumwolf/delete-deployment-environment@v2
+        with:
+          token: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
+          environment: ${{ steps.construct-stackname.outputs.STACK_NAME }}
