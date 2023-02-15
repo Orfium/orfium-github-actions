@@ -149,9 +149,9 @@ jobs:
             print('Stack does not exist')
             raise
 
-      - name: Delete GitHub Environment
-        if: steps.extract-deployment-envs.outputs.teardown_key_exists == 1
-        uses: strumwolf/delete-deployment-environment@v2
-        with:
-          token: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
-          environment: ${{ steps.construct-stackname.outputs.STACK_NAME }}
+      # - name: Delete GitHub Environment
+      #   if: steps.extract-deployment-envs.outputs.teardown_key_exists == 1
+      #   uses: strumwolf/delete-deployment-environment@v2
+      #   with:
+      #     token: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
+      #     environment: ${{ steps.construct-stackname.outputs.STACK_NAME }}
