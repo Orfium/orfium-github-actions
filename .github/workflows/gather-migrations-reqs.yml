@@ -1,0 +1,77 @@
+---
+name: Gather Migrations Requirements
+
+on:
+  workflow_call:
+    outputs:
+      ecs-cluster-arn:
+        description: "The ECS Cluster ARN"
+        value: ${{ jobs.gather-migrations-reqs.outputs.ecs-cluster-arn }}
+      ecs-service-arn:
+        description: "The ECS Service ARN"
+        value: ${{ jobs.gather-migrations-reqs.outputs.ecs-service-arn }}
+      cd-role-arn:
+        description: "The CD Role ARN"
+        value: ${{ jobs.gather-migrations-reqs.outputs.cd-role-arn }}
+      region:
+        description: "The region"
+        value: ${{ jobs.gather-migrations-reqs.outputs.region }}
+
+
+jobs:
+  gather-migrations-reqs:
+    runs-on: ubuntu-latest
+    outputs:
+      ecs-cluster-arn: ${{ steps.check-init-deploy.outputs.ECS_CLUSTER_ARN }}
+      ecs-service-arn: ${{ steps.check-init-deploy.outputs.ECS_SERVICE_ARN }}
+      cd-role-arn: ${{ steps.check-init-deploy.outputs.AWS_CD_ROLE }}
+      region: ${{ steps.check-init-deploy.outputs.AWS_REGION }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+  
+      - name: Set deployment env
+        id: set-environment
+        run: |
+          if [ ${{ github.event_name }} == "pull_request" ]; then
+            echo "This is a review environment"
+            cat infra/environments/review.env >> "$GITHUB_ENV"
+          else
+            echo "This is a production environment"
+            cat infra/environments/production.env >> "$GITHUB_ENV"
+          fi
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          role-to-assume: ${{ env.AWS_CD_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: false
+      - name: Gather run python migrations requirements
+        id: check-init-deploy
+        run: |
+          # shellcheck disable=SC2016
+          if [ ${{ github.event_name }} == "pull_request" ]; then
+            ECS_CLUSTER_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.ProductName }}-${{ github.event.pull_request.number }}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`ClusterArn`].OutputValue' \
+              --output text)
+            ECS_SERVICE_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.ProductName }}-${{ github.event.pull_request.number }}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`ApiServiceArn`].OutputValue' \
+              --output text)
+          else
+            ECS_CLUSTER_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.ProductName }}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`ClusterArn`].OutputValue' \
+              --output text)
+            ECS_SERVICE_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.ProductName }}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`ApiServiceArn`].OutputValue' \
+              --output text)
+          fi
+          # shellcheck disable=SC2129
+          echo "ECS_CLUSTER_ARN=$ECS_CLUSTER_ARN" >> "$GITHUB_OUTPUT"
+          echo "ECS_SERVICE_ARN=$ECS_SERVICE_ARN" >> "$GITHUB_OUTPUT"
+          echo "AWS_CD_ROLE=${{ env.AWS_CD_ROLE }}" >> "$GITHUB_OUTPUT"
+          echo "AWS_REGION=${{ env.AWS_REGION }}" >> "$GITHUB_OUTPUT"
