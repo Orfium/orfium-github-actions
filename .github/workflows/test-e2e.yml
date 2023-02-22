@@ -13,7 +13,7 @@ env:
   COMPOSE_DOCKER_CLI_BUILD: 1
 
 jobs:
-  test:
+  end-to-end-tests:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code Repository
