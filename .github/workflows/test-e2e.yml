@@ -4,9 +4,6 @@ on:
       BUILDX_LOCAL_CACHE_DIR:
         required: false
         type: string
-      COVERAGE_CACHE_DIR:
-        required: true
-        type: string
     secrets:
       PR_TOKEN:
         required: true
