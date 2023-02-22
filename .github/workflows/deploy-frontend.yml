@@ -142,7 +142,7 @@ jobs:
           name: ${{ steps.config.outputs.stackname }}
           role-arn: ${{ steps.config.outputs.cfn_role }}
           template: >-
-            https://orfium-cf-templates.s3.amazonaws.com/aws-cloudfront-s3-frontend.yml
+            https://orfium-cf-templates-repository-us-east-1.s3.us-east-1.amazonaws.com/frontend-v1.0.yml
           parameter-overrides: >-
             CSPHeaderValue=${{ steps.config.outputs.csp_header }},
             FeDomainName=${{ steps.config.outputs.subdomain }}.${{ steps.config.outputs.domain }},
