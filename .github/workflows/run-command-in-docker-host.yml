@@ -1,0 +1,56 @@
+on:
+  workflow_call:
+    inputs:
+      BUILDX_LOCAL_CACHE_DIR:
+        required: false
+        type: string
+      COMMAND:
+        required: true
+        type: string
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  run-command-in-docker-host:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Set up Local Cache for Docker layers
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: actions/cache@v3
+        with:
+          path: ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+          key: ${{ runner.os }}-buildx-local-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-local-
+
+      - name: Build local image from Cache
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          load: true
+          target: local
+          tags: ${{ github.event.repository.name }}
+          cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+      
+      - name: Build local image
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          load: true
+          target: local
+          tags: ${{ github.event.repository.name }}
+      
+      - name: Run command
+        run: ${{ inputs.COMMAND }}
+      
