@@ -12,9 +12,6 @@ on:
         required: false
         type: boolean
         default: false
-    secrets:
-      PR_TOKEN:
-        required: true
 
 env:
   DOCKER_BUILDKIT: 1
@@ -60,11 +57,11 @@ jobs:
           tags: ${{ github.event.repository.name }}
 
       - name: Run End to End API tests
-        if: ${{ inputs.RUN_API_TESTS == true }}
+        if: ${{ inputs.RUN_API_TESTS }}
         run: make e2e-api-tests
 
       - name: Run End to End UI tests
-        if: ${{ inputs.RUN_UI_TESTS == true }}
+        if: ${{ inputs.RUN_UI_TESTS }}
         run: make e2e-ui-tests
 
       - name: Tear down the Stack
