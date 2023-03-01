@@ -32,7 +32,7 @@ jobs:
           else
             FOLDER_PATH=${{ inputs.infra_folder_path }}/
           fi
-          echo "infra_folder_path=$FOLDER_PATH" >> $GITHUB_OUTPUT
+          echo "infra_folder_path=$FOLDER_PATH" >> "$GITHUB_OUTPUT"
 
   teardown:
     needs:
