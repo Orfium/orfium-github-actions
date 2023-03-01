@@ -3,6 +3,10 @@ name: Gather Migrations Requirements
 
 on:
   workflow_call:
+    inputs:
+      infra_folder_path:
+        required: false
+        type: string
     outputs:
       ecs-cluster-arn:
         description: "The ECS Cluster ARN"
@@ -17,9 +21,26 @@ on:
         description: "The region"
         value: ${{ jobs.gather-migrations-reqs.outputs.region }}
 
-
 jobs:
+  set-environment-variables:
+    runs-on: ubuntu-latest
+    outputs:
+      infra_folder_path: ${{ steps.infra-folder-path.outputs.infra_folder_path }}
+    steps:
+      - name: Check infra folder path
+        id: infra-folder-path
+        run: |
+          FOLDER_PATH=${{ inputs.infra_folder_path }}
+          if [[ -z $FOLDER_PATH ]]; then
+            FOLDER_PATH=infra/
+          else
+            FOLDER_PATH=${{ inputs.infra_folder_path }}/
+          fi
+          echo "infra_folder_path=$FOLDER_PATH" >> $GITHUB_OUTPUT
+
   gather-migrations-reqs:
+    needs:
+      - set-environment-variables
     runs-on: ubuntu-latest
     outputs:
       ecs-cluster-arn: ${{ steps.check-init-deploy.outputs.ECS_CLUSTER_ARN }}
@@ -35,18 +56,20 @@ jobs:
         run: |
           if [ ${{ github.event_name }} == "pull_request" ]; then
             echo "This is a review environment"
-            cat infra/environments/review.env >> "$GITHUB_ENV"
+            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/review.env >> "$GITHUB_ENV"
           else
             echo "This is a production environment"
-            cat infra/environments/production.env >> "$GITHUB_ENV"
+            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/production.env >> "$GITHUB_ENV"
           fi
+
       - name: Configure AWS Credentials
         id: configure-aws-creds
-        uses: aws-actions/configure-aws-credentials@v1.7.0
+        uses: aws-actions/configure-aws-credentials@v1-node16
         with:
           role-to-assume: ${{ env.AWS_CD_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: false
+
       - name: Gather run python migrations requirements
         id: check-init-deploy
         run: |

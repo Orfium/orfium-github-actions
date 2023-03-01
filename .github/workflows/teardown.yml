@@ -9,13 +9,34 @@ on:
       environment_suffix:
         required: true
         type: string
+      infra_folder_path:
+        required: false
+        type: string
     secrets:
       REVIEW_TEARDOWN_TOKEN:
         required: false
         description: GitHub token inherited from invoker
 
 jobs:
+  set-environment-variables:
+    runs-on: ubuntu-latest
+    outputs:
+      infra_folder_path: ${{ steps.infra-folder-path.outputs.infra_folder_path }}
+    steps:
+      - name: Check infra folder path
+        id: infra-folder-path
+        run: |
+          FOLDER_PATH=${{ inputs.infra_folder_path }}
+          if [[ -z $FOLDER_PATH ]]; then
+            FOLDER_PATH=infra/
+          else
+            FOLDER_PATH=${{ inputs.infra_folder_path }}/
+          fi
+          echo "infra_folder_path=$FOLDER_PATH" >> $GITHUB_OUTPUT
+
   teardown:
+    needs:
+      - set-environment-variables
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -38,13 +59,13 @@ jobs:
         run: |
           set -o allexport
 
-          if [ -f "infra/environments/common.env" ]; then
-            source infra/environments/common.env
+          if [ -f "${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/common.env" ]; then
+            source ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/common.env
           else
             echo "No common.env file has been found. Disregarding it."
           fi
 
-          source infra/environments/${{ inputs.environment_id }}.env
+          source ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/${{ inputs.environment_id }}.env
 
           if [[ -z $ProductName || -z $AWS_REGION || -z $AWS_ACCOUNT_ID || -z $AWS_ACCOUNT_NAME || -z $AWS_CD_ROLE || -z $AWS_CF_ROLE ]]; then
             echo -e "All necessary parameters must be defined, which are:\n- ProductName\n- AWS_REGION\n- AWS_ACCOUNT_ID\n- AWS_ACCOUNT_NAME\n- AWS_CD_ROLE\n- AWS_CF_ROLE"
