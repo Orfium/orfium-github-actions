@@ -69,10 +69,6 @@ jobs:
                   taskDefinition=service["taskDefinition"]
               )["taskDefinition"]["containerDefinitions"]
               essential_containers = [x for x in container_definitions if x["essential"]]
-              if (num_essential_containers := len(essential_containers)) != 1:
-                  raise Exception(
-                      f"Expected only one essential container, found {num_essential_containers}"
-                  )
               container_name = essential_containers[0]["name"]
               return container_name
 
