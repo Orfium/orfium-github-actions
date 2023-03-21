@@ -78,6 +78,13 @@ jobs:
               STACKNAME=${PRODUCT}-pr-${{ github.event.pull_request.number }}
           fi
 
+          # FIXME: Temporarily disable response headers policy creation for review environments (deployed for PRs) by
+          # setting CSP headers to an empty string in order to avoid hitting the limit for response headers policies.
+          # We should find a better way to do this :'(
+          if [ ${{ github.event_name }} == 'pull_request' ]; then
+              CSP_HEADER=""
+          fi
+
           # shellcheck disable=SC2129
           echo "version=$NODE_VERSION" >> "$GITHUB_OUTPUT"
           echo "csp_header=$CSP_HEADER" >> "$GITHUB_OUTPUT"
