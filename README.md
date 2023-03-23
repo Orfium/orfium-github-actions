@@ -85,17 +85,21 @@ deploy:
     environment_id: review
     environment_suffix: ${{ github.event.pull_request.number }}
     dynamic_cf_parameters: ${{ needs.build_app.outputs.json-string }}
-    main_cf_template: infra/custom_master.yml
+    main_cf_template: custom_master.yml
+    infra_folder_path: .
 ```
 * For the job name, you can leave it as shown above
 * The "needs" section depends on your CI's job names and job prerequisites
 
+**P.S. The workflow assumes that the IaC related files are under the folder "infra/". If that is not the case, you need to use the workflow input: "infra_folder_path:" mentioned below, with the directory of your choice, WITHOUT the slash, e.g. '.' for root directory**
+
 For the reusable workflow's inputs, there are 4 required ones:
 * python_version: (OPTIONAL) The python version that will be used for workflow's commands
-* environment_id: The environment_id MUST match a pre-existing environment file and a pre-existing <environment_id>_cf_parameters.json, e.g. infra/environments/production.env + infra/environments/production_cf_parameters.json + environment_id: production.
+* environment_id: The environment_id MUST match a pre-existing environment file and a pre-existing <environment_id>_cf_parameters.json, e.g. environments/production.env + environments/production_cf_parameters.json + environment_id: production.
 * environment_suffix: (OPTIONAL) The suffix that is added to the stack name along with the product name. The recommendation is a) For review environments, to add the Pull Request number, b) for other environment types, to match the environment_id. Having said that, these are recommendations and anything meaningful can be added. For production environments, we can leave it empty, as it will be the main environment and does not need a suffix. Moreover, it helps us make the assumption that if an environment does not have a suffix, it is the production environment and should be handled with more care than an ephemeral environment.
 * dynamic_cf_parameters: (OPTIONAL) A stringified list of additional parameters that can be adedd to the sam deploy command. You can easily create such a string with a command like this:
-* main_cf_template: (OPTIONAL) The default file path of the main CloudFormation template is infra/aws-deploy.yml. If there is a need for a different filename or a file in a different path in the repo you can overwrite by providing here the custom template.
+* main_cf_template: (OPTIONAL) The default file path of the main CloudFormation template is aws-deploy.yml. If there is a need for a different filename or a file in a different path in the repo you can overwrite by providing here the custom template.
+* infra_folder_path: The folder path that contains all the IaC related folders/files such as samconfig.toml, environments folder, master.yml, etc etc
 ```
 app_image=hello
 test_custom_var_1=123456789012.dkr.ecr.us-east-1.amazonaws.com/test/flower:latest
@@ -115,21 +119,21 @@ with:
 ```
 
 The workflow expects a specific folder structure and naming scheme:
-* A main folder called "infra" that includes all the CloudFormation templates including the root/parent/main CloudFormation template and the samconfig.toml
+* The root/parent/main CloudFormation template and the samconfig.toml file
 * The root/parent/main CloudFormation template, must be named "aws-deploy.yml". If there is a need to not use that one, another one can be passed through the "main_cf_template" workflow input that overwrites the default value. If it's a local file, the full file path must be provided.
-* A subfolder "infra/environments" that includes all the .env files and .json files that correspond with the environment_id naming scheme, plus, an optional "common.env" file for global variables across environments, like the ProductName or even aws-region if it's the same across all different environments.
+* A subfolder "environments" that includes all the .env files and .json files that correspond with the environment_id naming scheme, plus, an optional "common.env" file for global variables across environments, like the ProductName or even aws-region if it's the same across all different environments.
 * There should be only one samconfig file, called "samconfig.toml", with all the environment_types specified inside
 
-The infra's folder structure MUST look something like this:
+The infra's folder structure MUST look something like this: ( only the Infrastructure as Code files are listed )
 ```
-ls -lhR infra/
-infra/:
+ls -lhR
+.:
 total 8.0K
 -rw-r--r-- 1 user user    0 Nov 10 11:45 aws-deploy.yml
 drwxr-xr-x 2 user user 4.0K Nov 10 09:34 environments
 -rw-r--r-- 1 user user 1.1K Nov  9 16:45 samconfig.toml
 
-infra/environments:
+./environments:
 total 36K
 -rw-r--r-- 1 user user   31 Nov  2 18:08 common.env
 -rw-r--r-- 1 user user  236 Nov  2 18:16 develop.env
@@ -156,5 +160,5 @@ teardown-application:
 The teardown reusable workflow handles the deletion of the cloudformations tack and all its resources. It also expects a folder structure same as the Deployment workflow above as it uses the same building blocks to find the proper stack name, AWS Account ID and IAM roles.
 
 You will need to feed 2 required parameters to the re-usable workflow:
-* environment_id: The environment_id, as mentioned above, MUST match a pre-existing environment file and a pre-existing <environment_id>_cf_parameters.json, e.g. infra/environments/production.env + infra/environments/production_cf_parameters.json + environment_id: production.
+* environment_id: The environment_id, as mentioned above, MUST match a pre-existing environment file and a pre-existing <environment_id>_cf_parameters.json, e.g. environments/production.env + environments/production_cf_parameters.json + environment_id: production.
 * environment_suffix: Unlike above, here the environment suffix is mandatory, in order to extrapolate the stack-name from the combination of the ProductName and the Environment Suffix. Because that similar method is used above to create the stack name in the first place, it used again here to reliably predict the name of the stack that we want to be deleted.

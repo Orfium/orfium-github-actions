@@ -19,6 +19,9 @@ on:
       main_cf_template:
         required: false
         type: string
+      infra_folder_path:
+        required: false
+        type: string
 
 jobs:
   set-environment-variables:
@@ -26,22 +29,34 @@ jobs:
     outputs:
       stack-name: ${{ steps.construct-stackname.outputs.STACK_NAME }}
       github-env-name: ${{ steps.construct-stackname.outputs.STACK_NAME }}
+      infra_folder_path: ${{ steps.infra-folder-path.outputs.infra_folder_path }}
     steps:
       - name: Checkout
         id: checkout
         uses: actions/checkout@v3
+
+      - name: Check infra folder path
+        id: infra-folder-path
+        run: |
+          FOLDER_PATH=${{ inputs.infra_folder_path }}
+          if [[ -z $FOLDER_PATH ]]; then
+            FOLDER_PATH=infra/
+          else
+            FOLDER_PATH=${{ inputs.infra_folder_path }}/
+          fi
+          echo "infra_folder_path=$FOLDER_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Extract Deployment Variables to Output
         id: extract-deployment-envs
         run: |
           set -o allexport
           
-          if [ -f "infra/environments/common.env" ]; then
-            source infra/environments/common.env
+          if [ -f "${{ steps.infra-folder-path.outputs.infra_folder_path }}environments/common.env" ]; then
+            source ${{ steps.infra-folder-path.outputs.infra_folder_path }}environments/common.env
           else
             echo "No common.env file has been found. Disregarding it."
           fi
-          source infra/environments/${{ inputs.environment_id }}.env
+          source ${{ steps.infra-folder-path.outputs.infra_folder_path }}environments/${{ inputs.environment_id }}.env
           
           if [[ -z $ProductName || -z $AWS_REGION || -z $AWS_ACCOUNT_ID || -z $AWS_ACCOUNT_NAME || -z $AWS_CD_ROLE || -z $AWS_CF_ROLE ]]; then
             echo -e "All necessary parameters must be defined, which are:\n- ProductName\n- AWS_REGION\n- AWS_ACCOUNT_ID\n- AWS_ACCOUNT_NAME\n- AWS_CD_ROLE\n- AWS_CF_ROLE"
@@ -86,12 +101,12 @@ jobs:
         run: |
           set -o allexport
 
-          if [ -f "infra/environments/common.env" ]; then
-            source infra/environments/common.env
+          if [ -f "${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/common.env" ]; then
+            source ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/common.env
           else
             echo "No common.env file has been found. Disregarding it."
           fi
-          source infra/environments/${{ inputs.environment_id }}.env
+          source ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/${{ inputs.environment_id }}.env
 
           if [[ -z $ProductName || -z $AWS_REGION || -z $AWS_ACCOUNT_ID || -z $AWS_ACCOUNT_NAME || -z $AWS_CD_ROLE || -z $AWS_CF_ROLE ]]; then
             echo -e "All necessary parameters must be defined, which are:\n- ProductName\n- AWS_REGION\n- AWS_ACCOUNT_ID\n- AWS_ACCOUNT_NAME\n- AWS_CD_ROLE\n- AWS_CF_ROLE"
@@ -133,12 +148,12 @@ jobs:
           DYNAMIC_CF_PARAMETERS='${{ inputs.dynamic_cf_parameters }}'
           if [[ -z $DYNAMIC_CF_PARAMETERS ]]; then
             #Filter out the Parameters parent key if it exists and then produce SAM parameters
-            SAM_PARAMETERS=$( jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')
+            SAM_PARAMETERS=$( jq '. | if has("Parameters") then .Parameters else . end' ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/${{ inputs.environment_id }}_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')
             #We construct the subdomain based on the stack name for consistency and predictability of domain names
             echo "SAM_PARAMETERS=$SAM_PARAMETERS Subdomain=${{ needs.set-environment-variables.outputs.stack-name }} ProductName=${{ steps.extract-deployment-envs.outputs.ProductName }}" >> "$GITHUB_OUTPUT"
           else
             #Filter out the Parameters parent key if it exists, combine with dynamic parameters and then produce SAM parameters
-            jq '. | if has("Parameters") then .Parameters else . end' infra/environments/${{ inputs.environment_id }}_cf_parameters.json >> temp_cf_parameters.json
+            jq '. | if has("Parameters") then .Parameters else . end' ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/${{ inputs.environment_id }}_cf_parameters.json >> temp_cf_parameters.json
             echo ${{ inputs.dynamic_cf_parameters }} | jq '.' >> dynamic_cf_parameters.json
             SAM_PARAMETERS=$( jq '. + input' temp_cf_parameters.json dynamic_cf_parameters.json | jq -r 'to_entries | map(.key + "=" + .value) | join(" ")')
             #We construct the subdomain based on the stack name for consistency and predictability of domain names
@@ -149,18 +164,18 @@ jobs:
         id: sam-deploy
         run: |
           #Echo for verification before deployment
-          cat infra/samconfig.toml
+          cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}samconfig.toml
           echo ${{ steps.combine-cf-parameters.outputs.SAM_PARAMETERS }}
 
           MAIN_TEMPLATE='${{ inputs.main_cf_template }}'
           if [[ -z $MAIN_TEMPLATE ]]; then
-            sam build -t infra/aws-deploy.yml
+            sam build -t ${{ needs.set-environment-variables.outputs.infra_folder_path }}aws-deploy.yml
           else
             sam build -t ${{ inputs.main_cf_template }}
           fi
 
           sam deploy \
-          --config-file infra/samconfig.toml \
+          --config-file ${{ needs.set-environment-variables.outputs.infra_folder_path }}samconfig.toml \
           --config-env ${{ inputs.environment_id }} \
           --stack-name ${{ needs.set-environment-variables.outputs.stack-name }} \
           --role-arn ${{ steps.extract-deployment-envs.outputs.AWS_CF_ROLE }} \
