@@ -13,7 +13,7 @@ env:
   COMPOSE_DOCKER_CLI_BUILD: 1
 
 jobs:
-  test:
+  swaggerhub:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code Repository
@@ -62,4 +62,4 @@ jobs:
         env:
           SWAGGERHUB_TOKEN: ${{ secrets.SWAGGERHUB_TOKEN }}
         run: |
-          curl -X POST "https://api.swaggerhub.com/apis/OrfiumTeam/${{ github.event.repository.name }}" -H "Authorization: $SWAGGERHUB_TOKEN" -H "Content-Type: application/yaml" --data-binary "@test.yaml"
+          curl --fail -X POST "https://api.swaggerhub.com/apis/OrfiumTeam/${{ github.event.repository.name }}" -H "Authorization: $SWAGGERHUB_TOKEN" -H "Content-Type: application/yaml" --data-binary "@test.yaml"
