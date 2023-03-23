@@ -9,10 +9,6 @@ on:
       environment_suffix:
         required: true
         type: string
-    secrets:
-      REVIEW_TEARDOWN_TOKEN:
-        required: false
-        description: GitHub token inherited from invoker
 
 jobs:
   teardown:
@@ -33,8 +29,6 @@ jobs:
 
       - name: Extract Deployment Variables to Output
         id: extract-deployment-envs
-        env:
-          REVIEW_TEARDOWN_TOKEN: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
         run: |
           set -o allexport
 
@@ -59,15 +53,6 @@ jobs:
           echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID" >> "$GITHUB_OUTPUT"
           echo "AWS_ACCOUNT_NAME=$AWS_ACCOUNT_NAME" >> "$GITHUB_OUTPUT"
           echo "AWS_CD_ROLE=$AWS_CD_ROLE" >> "$GITHUB_OUTPUT"
-
-          # Check if Teardown Key was provided
-          if [[ -z $REVIEW_TEARDOWN_TOKEN ]]; then
-            echo "Teardown token was not provided. Nothing else to do"
-            echo "teardown_key_exists=0" >> "$GITHUB_OUTPUT"
-          else
-            echo "Teardown token was provided. Deleting GitHub Environment"
-            echo "teardown_key_exists=1" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Construct Stack Name
         id: construct-stackname
@@ -148,10 +133,3 @@ jobs:
           except boto3exceptions.ClientError:
             print('Stack does not exist')
             raise
-
-      # - name: Delete GitHub Environment
-      #   if: steps.extract-deployment-envs.outputs.teardown_key_exists == 1
-      #   uses: strumwolf/delete-deployment-environment@v2
-      #   with:
-      #     token: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
-      #     environment: ${{ steps.construct-stackname.outputs.STACK_NAME }}
