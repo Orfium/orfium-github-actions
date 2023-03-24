@@ -32,7 +32,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-local-
 
-      - name: Build Image from Cache
+      - name: Build local image from Cache
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
         uses: docker/build-push-action@v3
         with:
