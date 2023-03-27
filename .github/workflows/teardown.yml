@@ -15,8 +15,6 @@ on:
 
 jobs:
   teardown:
-    needs:
-      - set-environment-variables
     runs-on: ubuntu-latest
     permissions:
       id-token: write
