@@ -1,7 +1,5 @@
 # How to contribute
 
-There are a few guidelines that we need contributors to follow regarding AWS IAM permissions.
-
 ## Getting Started
 * Create a Jira ticket with your request if one does not already exist.
   * Clearly describe the request.
@@ -10,7 +8,6 @@ There are a few guidelines that we need contributors to follow regarding AWS IAM
 * If you are not sure how and where to start contact the DevOps team.
 
 ## Making Changes
-**Important Notice. All the templates have a version as a suffix to the template's name. We use that for breaking changes. If your change is minor and does not have breaking changes, only change the minor version, e.g. v0.2 -> v0.3 but if there are breaking changes, change the major version e.g v0.5 -> v1.0**
 * Clone this repository locally
 * Create a feature branch from the `master` branch
   * To quickly create a feature branch based on `master`, run `git checkout -b JIRA-TICKET/my_contribution`
