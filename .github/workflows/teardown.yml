@@ -12,28 +12,8 @@ on:
       infra_folder_path:
         required: false
         type: string
-    secrets:
-      REVIEW_TEARDOWN_TOKEN:
-        required: false
-        description: GitHub token inherited from invoker
 
 jobs:
-  set-environment-variables:
-    runs-on: ubuntu-latest
-    outputs:
-      infra_folder_path: ${{ steps.infra-folder-path.outputs.infra_folder_path }}
-    steps:
-      - name: Check infra folder path
-        id: infra-folder-path
-        run: |
-          FOLDER_PATH=${{ inputs.infra_folder_path }}
-          if [[ -z $FOLDER_PATH ]]; then
-            FOLDER_PATH=infra/
-          else
-            FOLDER_PATH=${{ inputs.infra_folder_path }}/
-          fi
-          echo "infra_folder_path=$FOLDER_PATH" >> "$GITHUB_OUTPUT"
-
   teardown:
     needs:
       - set-environment-variables
@@ -52,6 +32,17 @@ jobs:
         with:
           python-version: "3.10"
 
+      - name: Check infra folder path
+        id: infra-folder-path
+        run: |
+          FOLDER_PATH=${{ inputs.infra_folder_path }}
+          if [[ -z $FOLDER_PATH ]]; then
+            FOLDER_PATH=infra/
+          else
+            FOLDER_PATH=${{ inputs.infra_folder_path }}/
+          fi
+          echo "infra_folder_path=$FOLDER_PATH" >> "$GITHUB_OUTPUT"
+
       - name: Extract Deployment Variables to Output
         id: extract-deployment-envs
         env:
@@ -59,13 +50,13 @@ jobs:
         run: |
           set -o allexport
 
-          if [ -f "${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/common.env" ]; then
-            source ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/common.env
+          if [ -f "${{ steps.infra-folder-path.outputs.infra_folder_path }}environments/common.env" ]; then
+            source ${{ steps.infra-folder-path.outputs.infra_folder_path }}environments/common.env
           else
             echo "No common.env file has been found. Disregarding it."
           fi
 
-          source ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/${{ inputs.environment_id }}.env
+          source ${{ steps.infra-folder-path.outputs.infra_folder_path }}environments/${{ inputs.environment_id }}.env
 
           if [[ -z $ProductName || -z $AWS_REGION || -z $AWS_ACCOUNT_ID || -z $AWS_ACCOUNT_NAME || -z $AWS_CD_ROLE || -z $AWS_CF_ROLE ]]; then
             echo -e "All necessary parameters must be defined, which are:\n- ProductName\n- AWS_REGION\n- AWS_ACCOUNT_ID\n- AWS_ACCOUNT_NAME\n- AWS_CD_ROLE\n- AWS_CF_ROLE"
@@ -81,24 +72,10 @@ jobs:
           echo "AWS_ACCOUNT_NAME=$AWS_ACCOUNT_NAME" >> "$GITHUB_OUTPUT"
           echo "AWS_CD_ROLE=$AWS_CD_ROLE" >> "$GITHUB_OUTPUT"
 
-          # Check if Teardown Key was provided
-          if [[ -z $REVIEW_TEARDOWN_TOKEN ]]; then
-            echo "Teardown token was not provided. Nothing else to do"
-            echo "teardown_key_exists=0" >> "$GITHUB_OUTPUT"
-          else
-            echo "Teardown token was provided. Deleting GitHub Environment"
-            echo "teardown_key_exists=1" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Construct Stack Name
         id: construct-stackname
         run: |
-          INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
-          if [[ -z $INPUT_ENV_SUFFIX ]]; then
-            echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
-          fi
+          echo "STACK_NAME=${{ steps.extract-deployment-envs.outputs.ProductName }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS Credentials
         id: configure-aws-creds
@@ -169,10 +146,3 @@ jobs:
           except boto3exceptions.ClientError:
             print('Stack does not exist')
             raise
-
-      # - name: Delete GitHub Environment
-      #   if: steps.extract-deployment-envs.outputs.teardown_key_exists == 1
-      #   uses: strumwolf/delete-deployment-environment@v2
-      #   with:
-      #     token: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
-      #     environment: ${{ steps.construct-stackname.outputs.STACK_NAME }}
