@@ -19,6 +19,7 @@ on:
       main_cf_template:
         required: false
         type: string
+        default: infra/aws-deploy.yml
       infra_folder_path:
         required: false
         type: string
@@ -112,12 +113,7 @@ jobs:
           cat ${{ inputs.infra_folder_path }}/samconfig.toml
           echo ${{ steps.combine-cf-parameters.outputs.SAM_PARAMETERS }}
 
-          MAIN_TEMPLATE='${{ inputs.main_cf_template }}'
-          if [[ -z $MAIN_TEMPLATE ]]; then
-            sam build -t ${{ inputs.infra_folder_path }}/aws-deploy.yml
-          else
-            sam build -t ${{ inputs.main_cf_template }}
-          fi
+          sam build -t ${{ inputs.main_cf_template }}
 
           sam deploy \
           --config-file ${{ inputs.infra_folder_path }}/samconfig.toml \
