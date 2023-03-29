@@ -12,6 +12,7 @@ on:
       infra_folder_path:
         required: false
         type: string
+        default: infra
 
 jobs:
   teardown:
@@ -30,17 +31,6 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Check infra folder path
-        id: infra-folder-path
-        run: |
-          FOLDER_PATH=${{ inputs.infra_folder_path }}
-          if [[ -z $FOLDER_PATH ]]; then
-            FOLDER_PATH=infra/
-          else
-            FOLDER_PATH=${{ inputs.infra_folder_path }}/
-          fi
-          echo "infra_folder_path=$FOLDER_PATH" >> "$GITHUB_OUTPUT"
-
       - name: Extract Deployment Variables to Output
         id: extract-deployment-envs
         env:
@@ -48,13 +38,13 @@ jobs:
         run: |
           set -o allexport
 
-          if [ -f "${{ steps.infra-folder-path.outputs.infra_folder_path }}environments/common.env" ]; then
-            source ${{ steps.infra-folder-path.outputs.infra_folder_path }}environments/common.env
+          if [ -f "${{ inputs.infra_folder_path }}/environments/common.env" ]; then
+            source ${{ inputs.infra_folder_path }}/environments/common.env
           else
             echo "No common.env file has been found. Disregarding it."
           fi
 
-          source ${{ steps.infra-folder-path.outputs.infra_folder_path }}environments/${{ inputs.environment_id }}.env
+          source ${{ inputs.infra_folder_path }}/environments/${{ inputs.environment_id }}.env
 
           if [[ -z $ProductName || -z $AWS_REGION || -z $AWS_ACCOUNT_ID || -z $AWS_ACCOUNT_NAME || -z $AWS_CD_ROLE || -z $AWS_CF_ROLE ]]; then
             echo -e "All necessary parameters must be defined, which are:\n- ProductName\n- AWS_REGION\n- AWS_ACCOUNT_ID\n- AWS_ACCOUNT_NAME\n- AWS_CD_ROLE\n- AWS_CF_ROLE"
