@@ -91,6 +91,7 @@ jobs:
         id: teardown-stack-and-buckets
         shell: python
         run: |
+          import sys
           import boto3
           import botocore.exceptions as boto3exceptions
 
@@ -130,7 +131,7 @@ jobs:
                 bucket.delete()
             except boto3exceptions.ClientError:
               print('Stack cannot be deleted')
-              raise
+              sys.exit(1)
           except boto3exceptions.ClientError:
             print('Stack does not exist')
-            raise
+            sys.exit(1)
