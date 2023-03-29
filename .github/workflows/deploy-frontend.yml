@@ -138,6 +138,7 @@ jobs:
 
           # if stack is in ROLLBACK_COMPLETE we have to delete it manually
           if [[ "$stack_status" == "ROLLBACK_COMPLETE" ]]; then
+            echo "the stack is in ROLLBACK_COMPLETE status; please delete manually"
             exit 1
           fi
 
