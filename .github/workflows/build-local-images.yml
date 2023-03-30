@@ -4,14 +4,35 @@ on:
       BUILDX_LOCAL_CACHE_DIR:
         required: false
         type: string
+      infra_folder_path:
+        required: false
+        type: string
 
 env:
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
 
 jobs:
+  set-environment-variables:
+    runs-on: ubuntu-latest
+    outputs:
+      infra_folder_path: ${{ steps.infra-folder-path.outputs.infra_folder_path }}
+    steps:
+      - name: Check infra folder path
+        id: infra-folder-path
+        run: |
+          FOLDER_PATH=${{ inputs.infra_folder_path }}
+          if [[ -z $FOLDER_PATH ]]; then
+            FOLDER_PATH=infra/
+          else
+            FOLDER_PATH=${{ inputs.infra_folder_path }}/
+          fi
+          echo "infra_folder_path=$FOLDER_PATH" >> "$GITHUB_OUTPUT"
+          
   build-local-images:
     runs-on: ubuntu-latest
+    needs:
+      - set-environment-variables
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v3
@@ -29,22 +50,53 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-local-
       
-      - name: Build local image from Cache
-        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
-        uses: docker/build-push-action@v3
+      - name: Set deployment env
+        id: set-environment
+        run: |
+          if [ ${{ github.event_name }} == 'pull_request' ]; then
+            echo "This is a review environment"
+            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/review.env >> "$GITHUB_ENV"
+            echo "ENVIRONMENT_ID=review" >> "$GITHUB_OUTPUT"
+            echo "ENVIRONMENT_SUFFIX=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "This is a production environment"
+            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/production.env >> "$GITHUB_ENV"
+            echo "ENVIRONMENT_ID=production" >> "$GITHUB_OUTPUT"
+            echo "ENVIRONMENT_SUFFIX=" >> "$GITHUB_OUTPUT"
+          fi
+      
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v1-node16
         with:
-          push: false
+          role-to-assume: ${{ env.AWS_CD_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: false
+
+      - name: Login to ECR
+        uses: docker/login-action@v2
+        with:
+          registry: "${{ env.ECR_REGISTRY }}"
+      
+      - name: Build local image and Cache
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: docker/build-push-action@v4
+        with:
+          push: true
           target: local
-          tags: ${{ github.event.repository.name }}
+          tags: ${{ env.ECR_REGISTRY }}:dev
           cache-to: type=local,dest=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}-new,mode=max
+          cache-from: ${{ env.ECR_REGISTRY }}:dev
       
       - name: Build local image
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
-          push: false
+          push: true
           target: local
-          tags: ${{ github.event.repository.name }}
+          tags: ${{ env.ECR_REGISTRY }}:dev
+          cache-from: ${{ env.ECR_REGISTRY }}:dev
+
       
       - name: Refresh Local cache
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
