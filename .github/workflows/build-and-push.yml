@@ -105,14 +105,27 @@ jobs:
       
       - name: Build And Push Docker Image
         uses: docker/build-push-action@v3
+        if: ${{ (github.event_name != 'pull_request') }}
         with:
           push: true
-          tags: ${{ env.ECR_REGISTRY }}:${{ github.sha }}
+          tags: ${{ env.ECR_REGISTRY }}:${{ github.sha }},${{ env.ECR_REGISTRY }}:stable
+          cache-from: ${{ env.ECR_REGISTRY }}:latest
+          cache-to: "type=inline"
+          target: production
+          
+      - name: Build And Push Docker Image PR
+        uses: docker/build-push-action@v3
+        if: ${{ (github.event_name == 'pull_request') }}
+        with:
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}:${{ github.sha }},${{ env.ECR_REGISTRY }}:latest
+          cache-from: ${{ env.ECR_REGISTRY }}:latest
           cache-to: "type=inline"
           target: production
       
       - name: Output ECR image
         id: ecr-image-out
+        if: ${{ (github.event_name != 'pull_request') }}
         shell: bash
         run: |
           ECR_IMAGE=${{ env.ECR_REGISTRY }}:${{ github.sha }}
