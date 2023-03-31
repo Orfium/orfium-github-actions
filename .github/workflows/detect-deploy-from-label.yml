@@ -1,0 +1,37 @@
+---
+name: Detect Deploy from Label
+
+on:
+  workflow_call:
+    inputs:
+      deploy_label:
+        required: false
+        type: string
+        default: review
+    outputs:
+      first-deploy:
+        description: "This is the first deployment"
+        value: ${{ jobs.check.outputs.first-deploy }}
+      should-deploy:
+        description: "Deployment should occur"
+        value: ${{ jobs.check.outputs.should-deploy }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      first-deploy: ${{ steps.detect-deploy-first.outputs.first }}
+      should-deploy: ${{ steps.detect-deploy.outputs.deploy }}
+    steps:
+      - name: Check if label is added for the first time
+        id: detect-deploy-first
+        if: github.event_name == 'pull_request' && github.event.action == 'labeled' && contains(github.event.pull_request.labels.*.name, ${{ inputs.deploy_label }})
+        run: |
+          echo "first=true" >> "$GITHUB_OUTPUT"
+      - name: Check if label exists on PRs
+        env:
+          DEPLOY_LABEL: ${{ inputs.DEPLOY_LABEL }}
+        id: detect-deploy
+        if: ( contains(github.event.pull_request.labels.*.name, ${{ inputs.deploy_label }}) && github.event_name == 'pull_request' ) || (github.event_name == 'push')
+        run: |
+          echo "deploy=true" >> "$GITHUB_OUTPUT"
