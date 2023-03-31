@@ -1,0 +1,180 @@
+name: Close Inactive PRs
+
+on:
+  workflow_call:
+    inputs:
+      closure_age:
+        description: The age of PRs that will trigger their closure in days. Example is 7
+        required: true
+        type: string
+      warning_age:
+        description: The age of PRs that will trigger a notification days. Example is 5
+        required: true
+        type: string
+      actor:
+        description: Filter pull requests eligible for closure and notification by actor. Supported values are all, dependabot and non-dependabot
+        required: false
+        type: string
+        default: all
+    secrets:
+      ROOM_WEBHOOK_URL:
+        required: true
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    env:
+      closure_age: ${{ inputs.closure_age }}
+      warning_age: ${{ inputs.warning_age }}
+    steps:
+      - name: Retrieve pull requests for closure dependabot only
+        if: ${{ inputs.actor == 'dependabot' }}
+        id: prs-for-closure-dependabot
+        run: |
+          date_before=$(date -d "$closure_age days ago" "+%s")
+          pr_numbers=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                          -H "Accept: application/vnd.github.v3+json" \
+                          "https://api.github.com/repos/${{ github.repository }}/pulls?sort=created_at&direction=desc&base=main" \
+                          | jq --arg date_before "$date_before" '.[] | select((.created_at | fromdateiso8601 < ($date_before | tonumber)) and (.user.login == "dependabot[bot]" ) ) | .number' \
+                          | jq -s '.' \
+                          | tr -d '[],' \
+                          | tr '\n' ' ')
+          echo "pr_numbers=$pr_numbers" >> "$GITHUB_OUTPUT"
+      - name: Retrieve pull requests for closure all actors
+        if: ${{ inputs.actor == 'all' }}
+        id: prs-for-closure
+        run: |
+          date_before=$(date -d "$closure_age days ago" "+%s")
+          pr_numbers=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                          -H "Accept: application/vnd.github.v3+json" \
+                          "https://api.github.com/repos/${{ github.repository }}/pulls?sort=created_at&direction=desc&base=main" \
+                          | jq --arg date_before "$date_before" '.[] | select(.created_at | fromdateiso8601 < ($date_before | tonumber) ) | .number' \
+                          | jq -s '.' \
+                          | tr -d '[],' \
+                          | tr '\n' ' ')
+          echo "pr_numbers=$pr_numbers" >> "$GITHUB_OUTPUT"
+      - name: Retrieve pull requests for closure non-dependabot
+        if: ${{ inputs.actor == 'non-dependabot' }}
+        id: prs-for-closure-non-dependabot
+        run: |
+          date_before=$(date -d "$closure_age days ago" "+%s")
+          pr_numbers=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                          -H "Accept: application/vnd.github.v3+json" \
+                          "https://api.github.com/repos/${{ github.repository }}/pulls?sort=created_at&direction=desc&base=main" \
+                          | jq --arg date_before "$date_before" '.[] | select((.created_at | fromdateiso8601 < ($date_before | tonumber)) and (.user.login != "dependabot[bot]" ) ) | .number' \
+                          | jq -s '.' \
+                          | tr -d '[],' \
+                          | tr '\n' ' ')
+          echo "pr_numbers=$pr_numbers" >> "$GITHUB_OUTPUT"
+          
+      - name: Retrieve pull requests for notification dependabot only
+        if: ${{ inputs.actor == 'dependabot' }}
+        id: prs-for-notification-dependabot
+        run: |
+          date_before=$(date -d "$closure_age days ago" "+%s")
+          date_after=$(date -d "$warning_age days ago" "+%s")
+          pr_numbers=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                          -H "Accept: application/vnd.github.v3+json" \
+                          "https://api.github.com/repos/${{ github.repository }}/pulls?sort=created_at&direction=desc&base=main" \
+                          | jq --arg date_before "$date_before" --arg date_after "$date_after" '.[] | select((.created_at | fromdateiso8601 > ($date_before | tonumber)) and (.created_at | fromdateiso8601 < ($date_after | tonumber))  and (.user.login == "dependabot[bot]" ) ) | .number' \
+                          | jq -s '.' \
+                          | tr -d '[],' \
+                          | tr '\n' ' ')
+          echo "pr_numbers=$pr_numbers" >> "$GITHUB_OUTPUT"
+      - name: Retrieve pull requests for notification all actors
+        if: ${{ inputs.actor == 'all' }}
+        id: prs-for-notification
+        run: |
+          date_before=$(date -d "$closure_age days ago" "+%s")
+          date_after=$(date -d "$warning_age days ago" "+%s")
+          pr_numbers=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                          -H "Accept: application/vnd.github.v3+json" \
+                          "https://api.github.com/repos/${{ github.repository }}/pulls?sort=created_at&direction=desc&base=main" \
+                          | jq --arg date_before "$date_before" --arg date_after "$date_after" '.[] | select((.created_at | fromdateiso8601 > ($date_before | tonumber)) and (.created_at | fromdateiso8601 < ($date_after | tonumber)) ) | .number' \
+                          | jq -s '.' \
+                          | tr -d '[],' \
+                          | tr '\n' ' ')
+          echo "pr_numbers=$pr_numbers" >> "$GITHUB_OUTPUT"
+      - name: Retrieve pull requests for notification non-dependabot only
+        if: ${{ inputs.actor == 'non-dependabot' }}
+        id: prs-for-notification-non-dependabot
+        run: |
+          date_before=$(date -d "$closure_age days ago" "+%s")
+          date_after=$(date -d "$warning_age days ago" "+%s")
+          pr_numbers=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                          -H "Accept: application/vnd.github.v3+json" \
+                          "https://api.github.com/repos/${{ github.repository }}/pulls?sort=created_at&direction=desc&base=main" \
+                          | jq --arg date_before "$date_before" --arg date_after "$date_after" '.[] | select((.created_at | fromdateiso8601 > ($date_before | tonumber)) and (.created_at | fromdateiso8601 < ($date_after | tonumber)) and (.user.login != "dependabot[bot]" ) ) | .number' \
+                          | jq -s '.' \
+                          | tr -d '[],' \
+                          | tr '\n' ' ')
+          echo "pr_numbers=$pr_numbers" >> "$GITHUB_OUTPUT"
+          
+          
+      - name: Close PRs after ${{ inputs.closure_age }} day(s) dependabot only
+        if: ${{ steps.prs-for-closure-dependabot.outputs.pr_numbers != ' ' && inputs.actor == 'dependabot' }}
+        run: |
+          # shellcheck disable=SC2043
+          for pr_id in ${{ steps.prs-for-closure-dependabot.outputs.pr_numbers }}
+          do
+              curl -X PATCH \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                https://api.github.com/repos/${{ github.repository }}/pulls/$pr_id \
+                -d '{"state":"closed"}'
+          done
+      - name: Close PRs after ${{ inputs.closure_age }} day(s)
+        if: ${{ steps.prs-for-closure.outputs.pr_numbers != ' ' && inputs.actor == 'all' }}
+        run: |
+          # shellcheck disable=SC2043
+          for pr_id in ${{ steps.prs-for-closure.outputs.pr_numbers }}
+          do
+              curl -X PATCH \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                https://api.github.com/repos/${{ github.repository }}/pulls/$pr_id \
+                -d '{"state":"closed"}'
+          done
+      - name: Close PRs after ${{ inputs.closure_age }} day(s) non-dependabot only
+        if: ${{ steps.prs-for-closure-non-dependabot.outputs.pr_numbers != ' ' && inputs.actor == 'non-dependabot' }}
+        run: |
+          # shellcheck disable=SC2043
+          for pr_id in ${{ steps.prs-for-closure-non-dependabot.outputs.pr_numbers }}
+          do
+              curl -X PATCH \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                https://api.github.com/repos/${{ github.repository }}/pulls/$pr_id \
+                -d '{"state":"closed"}'
+          done
+      
+      - name: Notify about closing PRs after ${{ inputs.warning_age }} day(s) dependabot only
+        if: ${{ steps.prs-for-notification-dependabot.outputs.pr_numbers != ' ' && inputs.actor == 'dependabot' }}
+        env:
+          ROOM_WEBHOOK_URL: ${{ secrets.ROOM_WEBHOOK_URL }}
+        run: |
+          # shellcheck disable=SC2043
+          for pr_id in ${{ steps.prs-for-notification-dependabot.outputs.pr_numbers }}
+          do
+              curl -X POST -H "Content-Type: application/json" -d "{\"text\": \"The pull request https://github.com/${{ github.repository }}/pull/$pr_id has no activity and will be deleted in $(( "$closure_age" - "$warning_age" )) day(s). Please review it.\"}" "$ROOM_WEBHOOK_URL"
+          done
+      - name: Notify about closing PRs after ${{ inputs.warning_age }} day(s)
+        if: ${{ steps.prs-for-notification.outputs.pr_numbers != ' ' && inputs.actor == 'all' }}
+        env:
+          ROOM_WEBHOOK_URL: ${{ secrets.ROOM_WEBHOOK_URL }}
+        run: |
+          # shellcheck disable=SC2043
+          for pr_id in ${{ steps.prs-for-notification.outputs.pr_numbers }}
+          do
+              curl -X POST -H "Content-Type: application/json" -d "{\"text\": \"The pull request https://github.com/${{ github.repository }}/pull/$pr_id has no activity and will be deleted in $(( "$closure_age" - "$warning_age" )) day(s). Please review it.\"}" "$ROOM_WEBHOOK_URL"
+          done
+      - name: Notify about closing PRs after ${{ inputs.warning_age }} day(s) non-dependabot only
+        if: ${{ steps.prs-for-notification-non-dependabot.outputs.pr_numbers != ' ' && inputs.actor == 'non-dependabot' }}
+        env:
+          ROOM_WEBHOOK_URL: ${{ secrets.ROOM_WEBHOOK_URL }}
+        run: |
+          # shellcheck disable=SC2043
+          for pr_id in ${{ steps.prs-for-notification-non-dependabot.outputs.pr_numbers }}
+          do
+              curl -X POST -H "Content-Type: application/json" -d "{\"text\": \"The pull request https://github.com/${{ github.repository }}/pull/$pr_id has no activity and will be deleted in $(( "$closure_age" - "$warning_age" )) day(s). Please review it.\"}" "$ROOM_WEBHOOK_URL"
+          done
