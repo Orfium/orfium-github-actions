@@ -129,9 +129,9 @@ jobs:
                 print (bucket.name)
                 bucket.object_versions.delete()
                 bucket.delete()
-            except boto3exceptions.ClientError:
-              print('Stack cannot be deleted')
+            except boto3exceptions.ClientError as exc:
+              print(str(exc))
               sys.exit(1)
-          except boto3exceptions.ClientError:
-            print('Stack does not exist')
+          except boto3exceptions.ClientError as exc:
+            print(str(exc))
             sys.exit(1)
