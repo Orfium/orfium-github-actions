@@ -12,10 +12,14 @@ on:
         required: false
         type: boolean
         default: false
+    secrets:
+      TESTRAIL_PASSWORD:
+        required: false
 
 env:
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
+  TESTRAIL_USERNAME: "qa@orfium.com"
 
 jobs:
   end-to-end-api-tests:
