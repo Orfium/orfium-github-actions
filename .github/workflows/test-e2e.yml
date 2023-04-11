@@ -70,6 +70,10 @@ jobs:
         if: ${{ inputs.RUN_UI_TESTS }}
         run: make e2e-ui-tests
 
+      - name: Publish Test Results on TestRail
+        if: always() && inputs.PUBLISH_TEST_RESULTS
+        run: make testrail-reports
+
       - name: Tear down the Stack
         run: make down-volumes
 
