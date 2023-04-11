@@ -14,12 +14,14 @@ on:
         default: false
     secrets:
       TESTRAIL_PASSWORD:
+        description: Password for Orfium's TestRail account
         required: false
 
 env:
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
   TESTRAIL_USERNAME: "qa@orfium.com"
+  TESTRAIL_PASSWORD: ${{ secrets.TESTRAIL_PASSWORD }}
 
 jobs:
   end-to-end-api-tests:
