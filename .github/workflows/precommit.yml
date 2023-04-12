@@ -50,14 +50,7 @@ jobs:
           target: local
           tags: ${{ github.event.repository.name }}
       
-      - name: Run pre commit PR
-        if: ${{ (github.event_name == 'pull_request') }}
-        run: |
-          # shellcheck disable=SC2129
-          make pre-commit args="--from-ref ${{ github.event.pull_request.base.sha }} --to-ref ${{ github.event.pull_request.head.sha }}"
-        
-      - name: Run pre commit branch
-        if: ${{ (github.event_name != 'pull_request') }}
+      - name: Run pre commit
         run: make pre-commit args="--all-files"
       
       - name: Tear down the Stack
