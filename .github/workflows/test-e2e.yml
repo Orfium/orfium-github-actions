@@ -25,7 +25,6 @@ env:
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
   TESTRAIL_USERNAME: "qa@orfium.com"
-  TESTRAIL_PASSWORD: ${{ secrets.TESTRAIL_PASSWORD }}
 
 jobs:
   end-to-end-api-tests:
@@ -76,6 +75,8 @@ jobs:
 
       - name: Publish test results to TestRail
         if: always() && inputs.PUBLISH_TESTRAIL_RESULTS
+        env:
+          TESTRAIL_PASSWORD: ${{ secrets.TESTRAIL_PASSWORD }}
         run: make testrail-results
 
       - name: Tear down the Stack
