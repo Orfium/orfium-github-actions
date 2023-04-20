@@ -12,10 +12,19 @@ on:
         required: false
         type: boolean
         default: false
+      PUBLISH_TESTRAIL_RESULTS:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      TESTRAIL_PASSWORD:
+        description: Password for Orfium's TestRail account
+        required: false
 
 env:
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
+  TESTRAIL_USERNAME: "qa@orfium.com"
 
 jobs:
   end-to-end-api-tests:
@@ -63,6 +72,12 @@ jobs:
       - name: Run End to End UI tests
         if: ${{ inputs.RUN_UI_TESTS }}
         run: make e2e-ui-tests
+
+      - name: Publish test results to TestRail
+        if: always() && inputs.PUBLISH_TESTRAIL_RESULTS
+        env:
+          TESTRAIL_PASSWORD: ${{ secrets.TESTRAIL_PASSWORD }}
+        run: make testrail-results
 
       - name: Tear down the Stack
         run: make down-volumes
