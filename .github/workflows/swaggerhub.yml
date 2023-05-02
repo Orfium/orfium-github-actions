@@ -4,9 +4,17 @@ on:
       BUILDX_LOCAL_CACHE_DIR:
         required: false
         type: string
+      codeartifact_encrypted_token_dev:
+        required: false
+        type: string
+      codeartifact_encrypted_token_prod:
+        required: false
+        type: string
     secrets:
       SWAGGERHUB_TOKEN:
         required: true
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: false
 
 env:
   DOCKER_BUILDKIT: 1
@@ -31,6 +39,20 @@ jobs:
           key: ${{ runner.os }}-buildx-local-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-local-
+      
+      - name: Decrypt Codeartifact dev token
+        if: "${{ inputs.codeartifact_encrypted_token_dev != '' }}"
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_dev }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN_DEV=$token" >> "$GITHUB_ENV"
+
+      - name: Decrypt Codeartifact prod token
+        if: "${{ inputs.codeartifact_encrypted_token_prod != '' }}"
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_prod }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN_PROD=$token" >> "$GITHUB_ENV"
 
       - name: Build local image from Cache
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
@@ -41,6 +63,9 @@ jobs:
           target: local
           tags: ${{ github.event.repository.name }}
           cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+          secrets: |
+            CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
+            CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
       
       - name: Build local image
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
@@ -50,6 +75,9 @@ jobs:
           load: true
           target: local
           tags: ${{ github.event.repository.name }}
+          secrets: |
+            CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
+            CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
 
       - name: Create Swaggerhub Definition
         run: make swaggerhub
