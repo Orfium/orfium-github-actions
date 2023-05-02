@@ -4,6 +4,15 @@ on:
       infra_folder_path:
         required: false
         type: string
+      codeartifact_encrypted_token_dev:
+        required: false
+        type: string
+      codeartifact_encrypted_token_prod:
+        required: false
+        type: string
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: false
     outputs:
       ecr-image:
         description: "The application's image" 
@@ -102,6 +111,20 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: "${{ env.ECR_REGISTRY }}"
+
+      - name: Decrypt Codeartifact dev token
+        if: "${{ inputs.codeartifact_encrypted_token_dev != '' }}"
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_dev }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN_DEV=$token" >> "$GITHUB_ENV"
+
+      - name: Decrypt Codeartifact prod token
+        if: "${{ inputs.codeartifact_encrypted_token_prod != '' }}"
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_prod }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN_PROD=$token" >> "$GITHUB_ENV"
       
       - name: Build And Push Docker Image
         uses: docker/build-push-action@v3
@@ -110,6 +133,9 @@ jobs:
           tags: ${{ env.ECR_REGISTRY }}:${{ github.sha }}
           cache-to: "type=inline"
           target: production
+          secrets: |
+            CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
+            CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
       
       - name: Output ECR image
         id: ecr-image-out
