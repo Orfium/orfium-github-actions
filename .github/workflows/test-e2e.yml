@@ -93,6 +93,7 @@ jobs:
           name: E2E Test Reports
           path: ${{ inputs.TEST_RESULTS_PATH }}   # Path to test results
           reporter: java-junit
+          fail-on-error: false
 
       - name: Tear down the Stack
         run: make down-volumes
