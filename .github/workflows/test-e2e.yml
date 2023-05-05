@@ -4,7 +4,10 @@ on:
       BUILDX_LOCAL_CACHE_DIR:
         required: false
         type: string
-      TEST_RESULTS_PATH :
+      API_TEST_RESULTS_PATH:
+        required: false
+        type: string
+      UI_TEST_RESULTS_PATH:
         required: false
         type: string
       RUN_UI_TESTS:
@@ -91,7 +94,7 @@ jobs:
         uses: dorny/test-reporter@v1
         with:
           name: E2E Test Reports
-          path: ${{ github.workspace }}/${{ inputs.TEST_RESULTS_PATH }}   # Concatenated Workspace absolute path with the path to the test results
+          path: ${{ github.workspace }}/${{ inputs.API_TEST_RESULTS_PATH }},${{ github.workspace }}/${{ inputs.UI_TEST_RESULTS_PATH }}   # Concatenated Workspace absolute path with the path to the test results
           reporter: java-junit # the proper reporter for test results that are generated with JUnit-XML format. We must make this dynamic if we want to support other formats.
           fail-on-error: false # we want the action to run even if the tests fail. If this is set to true, we won't have reports if a test fails
 
