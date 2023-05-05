@@ -32,6 +32,10 @@ env:
 jobs:
   end-to-end-api-tests:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      checks: write
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v3
