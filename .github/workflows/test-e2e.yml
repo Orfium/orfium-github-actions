@@ -91,7 +91,7 @@ jobs:
         uses: dorny/test-reporter@v1
         with:
           name: E2E Test Reports
-          path: ${{ inputs.TEST_RESULTS_PATH }}   # Path to test results
+          path: ${{ github.workspace }}/${{ inputs.TEST_RESULTS_PATH }}   # Path to test results
           reporter: java-junit
           fail-on-error: false
 
