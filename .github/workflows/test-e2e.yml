@@ -4,6 +4,9 @@ on:
       BUILDX_LOCAL_CACHE_DIR:
         required: false
         type: string
+      TEST_RESULTS_PATH :
+        required: false
+        type: string
       RUN_UI_TESTS:
         required: false
         type: boolean
@@ -78,6 +81,14 @@ jobs:
         env:
           TESTRAIL_PASSWORD: ${{ secrets.TESTRAIL_PASSWORD }}
         run: make testrail-results
+
+      - name: visualise-e2e-test-reports
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: E2E Test Reports
+          path: ${{ inputs.TEST_RESULTS_PATH }}   # Path to test results
+          reporter: java-junit
 
       - name: Tear down the Stack
         run: make down-volumes
