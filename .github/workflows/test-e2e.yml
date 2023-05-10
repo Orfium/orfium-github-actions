@@ -76,10 +76,12 @@ jobs:
           tags: ${{ github.event.repository.name }}
 
       - name: Run End to End API tests
+        id: e2e-api-tests
         if: ${{ inputs.RUN_API_TESTS }}
         run: make e2e-api-tests
 
       - name: Run End to End UI tests
+        id: e2e-ui-tests
         if: ${{ inputs.RUN_UI_TESTS }}
         run: make e2e-ui-tests
 
@@ -90,7 +92,7 @@ jobs:
         run: make testrail-results
 
       - name: visualise-e2e-test-reports
-        if: always()
+        if: steps.e2e-api-tests.outcome != 'skipped' || steps.e2e-ui-tests.outcome != 'skipped'
         uses: dorny/test-reporter@v1
         with:
           name: E2E Test Reports
