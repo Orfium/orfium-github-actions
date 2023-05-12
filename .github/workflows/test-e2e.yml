@@ -4,6 +4,12 @@ on:
       BUILDX_LOCAL_CACHE_DIR:
         required: false
         type: string
+      API_TEST_RESULTS_PATH:
+        required: false
+        type: string
+      UI_TEST_RESULTS_PATH:
+        required: false
+        type: string
       RUN_UI_TESTS:
         required: false
         type: boolean
@@ -37,6 +43,10 @@ env:
 jobs:
   end-to-end-api-tests:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      checks: write
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v3
@@ -94,10 +104,12 @@ jobs:
             CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
 
       - name: Run End to End API tests
+        id: e2e-api-tests
         if: ${{ inputs.RUN_API_TESTS }}
         run: make e2e-api-tests
 
       - name: Run End to End UI tests
+        id: e2e-ui-tests
         if: ${{ inputs.RUN_UI_TESTS }}
         run: make e2e-ui-tests
 
@@ -106,6 +118,15 @@ jobs:
         env:
           TESTRAIL_PASSWORD: ${{ secrets.TESTRAIL_PASSWORD }}
         run: make testrail-results
+
+      - name: visualise-e2e-test-reports
+        if: steps.e2e-api-tests.outcome != 'skipped' || steps.e2e-ui-tests.outcome != 'skipped'
+        uses: dorny/test-reporter@v1
+        with:
+          name: E2E Test Reports
+          path: ${{ github.workspace }}/${{ inputs.API_TEST_RESULTS_PATH }},${{ github.workspace }}/${{ inputs.UI_TEST_RESULTS_PATH }} # Comma separated list of paths to test results, all matched result files must be of the same format
+          reporter: java-junit # the proper reporter for test results that are generated with JUnit-XML format. We must make this dynamic if we want to support other formats.
+          fail-on-error: false # we want the action to run even if the tests fail. If this is set to true, we won't have reports if a test fails
 
       - name: Tear down the Stack
         run: make down-volumes
