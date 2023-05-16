@@ -121,7 +121,7 @@ jobs:
 
       - name: visualise-e2e-test-reports
         # We leverage the fact that GitHub Actions sets the outcome to null for steps that have not run
-        if: steps.e2e-api-tests.conclusion != null || steps.e2e-ui-tests.conclusion != null
+        if: always() && (steps.e2e-api-tests.outcome != null || steps.e2e-ui-tests.outcome != null)
         uses: dorny/test-reporter@v1
         with:
           name: E2E Test Reports
