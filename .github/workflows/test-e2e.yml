@@ -120,7 +120,8 @@ jobs:
         run: make testrail-results
 
       - name: visualise-e2e-test-reports
-        if: steps.e2e-api-tests.outcome != 'skipped' || steps.e2e-ui-tests.outcome != 'skipped'
+        # We leverage the fact that GitHub Actions sets the outcome to null for steps that have not run
+        if: steps.e2e-api-tests.conclusion != null || steps.e2e-ui-tests.conclusion != null
         uses: dorny/test-reporter@v1
         with:
           name: E2E Test Reports
