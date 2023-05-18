@@ -4,6 +4,14 @@ on:
       BUILDX_LOCAL_CACHE_DIR:
         required: false
         type: string
+      BUILD_CONTEXT:
+        required: false
+        type: string
+        default: .
+      BUILD_TARGET:
+        required: false
+        type: string
+        default: local
       API_TEST_RESULTS_PATH:
         required: false
         type: string
@@ -78,26 +86,39 @@ jobs:
           echo "::add-mask::$token"
           echo "CODEARTIFACT_TOKEN_PROD=$token" >> "$GITHUB_ENV"
 
-      - name: Build local image from Cache
+      - name: Build local service image from Cache
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
         uses: docker/build-push-action@v3
         with:
           push: false
           load: true
-          target: local
+          target: ${{ inputs.BUILD_TARGET }}
           tags: ${{ github.event.repository.name }}
           cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
           secrets: |
             CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
             CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
 
-      - name: Build local image
+      - name: Build local image service
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
         uses: docker/build-push-action@v3
         with:
           push: false
           load: true
-          target: local
+          target: ${{ inputs.BUILD_TARGET }}
+          tags: ${{ github.event.repository.name }}
+          secrets: |
+            CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
+            CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
+
+      - name: Build local image playwright
+        if: "${{ inputs.RUN_UI_TESTS == 'true' }}"
+        uses: docker/build-push-action@v3
+        with:
+          context: ${{ inputs.BUILD_CONTEXT }}
+          push: false
+          load: true
+          target: ${{ inputs.BUILD_TARGET }}
           tags: ${{ github.event.repository.name }}
           secrets: |
             CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
