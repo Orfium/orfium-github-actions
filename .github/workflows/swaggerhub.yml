@@ -10,6 +10,11 @@ on:
       codeartifact_encrypted_token_prod:
         required: false
         type: string
+      is_private:
+        required: false
+        type: string
+        default: true
+        description: Whether the swagger definition should be public or pricate
     secrets:
       SWAGGERHUB_TOKEN:
         required: true
@@ -89,5 +94,6 @@ jobs:
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         env:
           SWAGGERHUB_TOKEN: ${{ secrets.SWAGGERHUB_TOKEN }}
+          IS_PRIVATE: ${{ inputs.is_private }}
         run: |
-          curl --fail -X POST "https://api.swaggerhub.com/apis/OrfiumTeam/${{ github.event.repository.name }}" -H "Authorization: $SWAGGERHUB_TOKEN" -H "Content-Type: application/yaml" --data-binary "@test.yaml"
+          curl --fail -X POST "https://api.swaggerhub.com/apis/OrfiumTeam/${{ github.event.repository.name }}?isPrivate=$IS_PRIVATE&force=true" -H "Authorization: $SWAGGERHUB_TOKEN" -H "Content-Type: application/yaml" --data-binary "@test.yaml"
