@@ -24,6 +24,12 @@ on:
         description: ""
         required: true
         type: string
+      repository:
+        required: true
+        type: string
+    secrets:
+      repo-token:
+        required: true
 
 permissions:
   id-token: write
@@ -35,6 +41,10 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
+        with:
+          ref: master
+          repository: ${{ inputs.repository }}
+          ssh-key: ${{ secrets.repo-token }}
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1-node16
