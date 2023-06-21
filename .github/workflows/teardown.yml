@@ -126,9 +126,11 @@ jobs:
               print("Deleting stack's buckets")
               for bucket_name in s3_bucket_list:
                 bucket = s3.Bucket(bucket_name)
-                print (bucket.name)
-                bucket.object_versions.delete()
-                bucket.delete()
+                print(bucket.name)
+                object_versions_delete_response = bucket.object_versions.delete()
+                bucket_delete_response = bucket.delete()
+                print(object_versions_delete_response)
+                print(bucket_delete_response)
             except boto3exceptions.ClientError as exc:
               print(str(exc))
               sys.exit(1)
