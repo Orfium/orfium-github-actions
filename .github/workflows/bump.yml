@@ -3,11 +3,17 @@ on:
     secrets:
       RELEASE_TOKEN:
         required: true
+    outputs:
+      latest-release-version:
+        description: "The last version"
+        value: ${{ jobs.bump.outputs.latest-release-version }}
+      
 
 jobs:
   bump:
-    if: github.event_name == 'push' && ( github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' )
     runs-on: ubuntu-latest
+    outputs:
+      latest-release-version: ${{ steps.release.outputs.VERSION }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
@@ -21,6 +27,7 @@ jobs:
         run: yarn install
       
       - name: Release
+        id: release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: npx semantic-release
