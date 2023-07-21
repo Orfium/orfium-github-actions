@@ -10,6 +10,10 @@ on:
       codeartifact_encrypted_token_prod:
         type: string
         required: false
+      infra_folder_path:
+        required: false
+        type: string
+        default: infra/
     secrets:
       GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
         required: false
@@ -19,17 +23,59 @@ env:
   COMPOSE_DOCKER_CLI_BUILD: 1
 
 jobs:
+  set-environment-variables:
+    runs-on: ubuntu-latest
+    outputs:
+      infra_folder_path: ${{ steps.infra-folder-path.outputs.infra_folder_path }}
+    steps:
+      - name: Check infra folder path
+        id: infra-folder-path
+        run: |
+          FOLDER_PATH=${{ inputs.infra_folder_path }}
+          echo "infra_folder_path=$FOLDER_PATH" >> "$GITHUB_OUTPUT"
+          
   build-local-images:
+    needs:
+      - set-environment-variables
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v3
         with:
           ref: ${{ github.sha }}
-      
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
-      
+        # # We are overriding the default buildkit version being used by Buildx. We need buildkit >= 12.0 and currently BuildX
+        # supports v0.11.6 https://github.com/docker/buildx/blob/b8739d74417f86aa8fc9aafb830a8ba656bdef0e/Dockerfile#L9.
+        # We should for any updates on buildx and on the setup-buildx-action itself.
+        with:
+          driver-opts: |
+            image=moby/buildkit:v0.12.0
+      - name: Set deployment env
+        id: set-environment
+        run: |
+          if [ ${{ github.event_name }} == 'pull_request' ]; then
+            echo "This is a review environment"
+            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/review.env >> "$GITHUB_ENV"
+            echo "ENVIRONMENT_ID=review" >> "$GITHUB_OUTPUT"
+            echo "ENVIRONMENT_SUFFIX=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "This is a production environment"
+            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/production.env >> "$GITHUB_ENV"
+            echo "ENVIRONMENT_ID=production" >> "$GITHUB_OUTPUT"
+            echo "ENVIRONMENT_SUFFIX=" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          role-to-assume: ${{ env.AWS_CD_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: false
+      - name: Login to ECR
+        uses: docker/login-action@v2
+        with:
+          registry: "${{ env.ECR_REGISTRY }}"
       - name: Set up Local Cache for Docker layers
         uses: actions/cache@v3
         with:
@@ -37,44 +83,44 @@ jobs:
           key: ${{ runner.os }}-buildx-local-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-local-
-
       - name: Decrypt Codeartifact dev token
         if: "${{ inputs.codeartifact_encrypted_token_dev != '' }}"
         run: |
           token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_dev }}" | base64 --decode))
           echo "::add-mask::$token"
           echo "CODEARTIFACT_TOKEN_DEV=$token" >> "$GITHUB_ENV"
-
       - name: Decrypt Codeartifact prod token
         if: "${{ inputs.codeartifact_encrypted_token_prod != '' }}"
         run: |
           token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_prod }}" | base64 --decode))
           echo "::add-mask::$token"
           echo "CODEARTIFACT_TOKEN_PROD=$token" >> "$GITHUB_ENV"
-
       - name: Build local image from Cache
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           push: false
           target: local
           tags: ${{ github.event.repository.name }}
-          cache-to: type=local,dest=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}-new,mode=max
+          cache-from: ${{ env.ECR_REGISTRY }}:dev
+          cache-to: |
+            type=registry,ref=${{ env.ECR_REGISTRY }}:dev,mode=max,image-manifest=true,oci-mediatypes=true
+            type=local,dest=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}-new,mode=max
           secrets: |
             "CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}"
             "CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}"
-
       - name: Build local image
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           push: false
           target: local
           tags: ${{ github.event.repository.name }}
+          cache-from: ${{ env.ECR_REGISTRY }}:dev
+          cache-to: type=registry,ref=${{ env.ECR_REGISTRY }}:dev,mode=max,image-manifest=true,oci-mediatypes=true
           secrets: |
             "CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}"
             "CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}"
-
       - name: Refresh Local cache
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
         run: |
