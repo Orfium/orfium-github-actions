@@ -28,6 +28,19 @@ on:
       codeartifact_encrypted_token_prod:
         required: false
         type: string
+      ECR_LOGIN:
+        required: false
+        type: boolean
+        default: false
+      ECR_REGISTRY:
+        required: false
+        type: string
+      ECR_REGION:
+        required: false
+        type: string
+      ECR_ROLE:
+        required: false
+        type: string
     secrets:
       TESTRAIL_PASSWORD:
         description: Password for Orfium's TestRail account
@@ -103,6 +116,21 @@ jobs:
             CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
             CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
 
+      - name: Configure AWS credentials
+        id: e2e-aws-configure
+        if: ${{ inputs.ECR_LOGIN }}
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ inputs.ECR_ROLE }}
+          aws-region: ${{ inputs.ECR_REGION }}
+
+      - name: Login to ECR
+        id: e2e-ecr-login
+        if: ${{ inputs.ECR_LOGIN }}
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ inputs.ECR_REGISTRY }}
+
       - name: Run End to End API tests
         id: e2e-api-tests
         if: ${{ inputs.RUN_API_TESTS }}
@@ -131,4 +159,3 @@ jobs:
 
       - name: Tear down the Stack
         run: make down-volumes
-
