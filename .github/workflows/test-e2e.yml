@@ -28,7 +28,7 @@ on:
       codeartifact_encrypted_token_prod:
         required: false
         type: string
-      ECR_LOGIN:
+      ECR_LOGIN_FLAG:
         required: false
         type: boolean
         default: false
@@ -38,7 +38,7 @@ on:
       ECR_REGION:
         required: false
         type: string
-      ECR_ROLE:
+      AWS_CD_ROLE:
         required: false
         type: string
     secrets:
@@ -118,15 +118,15 @@ jobs:
 
       - name: Configure AWS credentials
         id: e2e-aws-configure
-        if: ${{ inputs.ECR_LOGIN }}
+        if: ${{ inputs.ECR_LOGIN_FLAG }}
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: ${{ inputs.ECR_ROLE }}
+          role-to-assume: ${{ inputs.AWS_CD_ROLE }}
           aws-region: ${{ inputs.ECR_REGION }}
 
       - name: Login to ECR
         id: e2e-ecr-login
-        if: ${{ inputs.ECR_LOGIN }}
+        if: ${{ inputs.ECR_LOGIN_FLAG }}
         uses: docker/login-action@v2
         with:
           registry: ${{ inputs.ECR_REGISTRY }}
