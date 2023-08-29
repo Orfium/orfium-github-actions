@@ -1,0 +1,33 @@
+name: Update pre-commit hooks
+
+on:
+  workflow_call:
+    inputs:
+      branch:
+        description: The branch where the PR will be opened against
+        required: false
+        type: string
+        default: main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-precommit-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: vrslev/pre-commit-autoupdate@v1.0.0
+      - uses: peter-evans/create-pull-request@v5
+        with:
+          branch: build-pre-commit-autoupdate
+          title: "build(deps): Update pre-commit hooks"
+          commit-message: "build(deps): Update pre-commit hooks"
+          body: Update pre-commit hooks
+          labels: dependencies
+          delete-branch: True
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ inputs.branch }}
