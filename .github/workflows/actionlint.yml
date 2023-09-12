@@ -37,4 +37,4 @@ jobs:
 
       - name: Run Actionlint
         run: |
-          ./actionlint -color -ignore 'property ".+" is not defined in object type'
+          ./actionlint -color

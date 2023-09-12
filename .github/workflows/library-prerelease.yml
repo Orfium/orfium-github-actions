@@ -28,7 +28,6 @@ jobs:
     outputs:
       version: ${{ steps.versioner.outputs.version }}
       notes: ${{ steps.generate_notes.outputs.notes }}
-      sha_short: ${{ steps.generate_notes.sha.sha_short }}
     env:
       ACTIONS_ALLOW_UNSECURE_COMMANDS: 'true'
     steps:
