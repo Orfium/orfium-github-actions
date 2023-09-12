@@ -1,0 +1,85 @@
+on:
+  workflow_call:
+    inputs:
+      python_version:
+        required: false
+        default: '3.10'
+        type: string
+      release_to_codeartifact:
+        required: false
+        default: false
+        type: boolean
+      release_to_github:
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: false
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  detect-release-parameters:
+    runs-on: ubuntu-latest
+    outputs:
+      notes: ${{ steps.generate_notes.outputs.notes }}
+    env:
+      ACTIONS_ALLOW_UNSECURE_COMMANDS: 'true'
+    steps:
+      - name: Setup Python 3
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+          architecture: x64
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.ORG_ACCESS_TOKEN }}
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Get notes
+        id: generate_notes
+        uses: anmarkoulis/commitizen-changelog-reader@v1.2.0
+        with:
+          tag_name: ${{ github.ref }}
+          changelog: CHANGELOG.md
+
+  release:
+    if: ${{ inputs.release_to_codeartifact }}
+    name: Release on Codeartifact
+    needs:
+      - detect-release-parameters
+    uses: Orfium/github-actions/.github/workflows/poetry_code_artifact_publish.yml@master
+    with:
+      is-production: true
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE: ${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}
+
+  release-github:
+    if: ${{ inputs.prerelease_to_github }}
+    runs-on: ubuntu-latest
+    name: Release on Github
+    needs:
+      - release
+      - detect-release-parameters
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      - name: Create Release Notes File
+        run: |
+          echo "${{join(fromJson(needs.detect-release-parameters.outputs.notes).notes, '')}}" > release_notes.txt
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REF: ${{ github.ref }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          echo $GITHUB_REF
+          echo $VERSION
+          gh release create $GITHUB_REF \
+          --title "Release $VERSION" \
+          --notes-file "$GITHUB_WORKSPACE/release_notes.txt"

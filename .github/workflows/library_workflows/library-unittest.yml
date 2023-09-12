@@ -1,0 +1,52 @@
+on:
+  workflow_call:
+    inputs:
+      python_version:
+        required: false
+        default: '3.10'
+        type: string
+      coverage_cache_dir:
+        required: false
+        default: '/tmp/.cache/.coverage-cache'
+        type: string
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64
+
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v3
+
+      - name: Run tests
+        run: make test
+
+      - name: Create Coverage Cache Registry
+        id: coverage-cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ inputs.coverage_cache_dir }}
+          key: ${{ runner.os }}-coverage-reports-${{ github.sha }}
+
+      - name: Cache Coverage
+        run: |
+          mkdir -p ${{ inputs.coverage_cache_dir }}-new
+          mv coverage.xml ${{ inputs.coverage_cache_dir }}-new/coverage.xml
+      - # Temp fix
+        # https://github.com/docker/build-push-action/issues/252
+        # https://github.com/moby/buildkit/issues/1896
+        name: Refresh Coverage cache
+        run: |
+          rm -rf ${{ inputs.coverage_cache_dir }}
+          mv ${{ inputs.coverage_cache_dir }}-new ${{ inputs.coverage_cache_dir }}

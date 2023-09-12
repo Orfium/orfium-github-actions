@@ -1,0 +1,107 @@
+on:
+  workflow_call:
+    inputs:
+      python_version:
+        required: false
+        default: '3.10'
+        type: string
+      prerelease_to_codeartifact:
+        required: false
+        default: false
+        type: boolean
+      prerelease_to_github:
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: false
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  detect-prerelease-parameters:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.versioner.outputs.version }}
+      notes: ${{ steps.generate_notes.outputs.notes }}
+      sha_short: ${{ steps.generate_notes.sha.sha_short }}
+    env:
+      ACTIONS_ALLOW_UNSECURE_COMMANDS: 'true'
+    steps:
+      - name: Setup Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64
+
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Store short sha in a variable
+        id: sha
+        run: |
+          echo "sha_short=$(git rev-parse --short ${{ github.event.pull_request.head.sha }})" >> $GITHUB_OUTPUT
+
+      - name: Run commitizen in order to detect version increment
+        uses: commitizen-tools/commitizen-action@0.18.2
+        id: cz
+        with:
+          push: false
+
+      - name: Get notes
+        id: generate_notes
+        uses: anmarkoulis/commitizen-changelog-reader@v1.2.0
+        with:
+          tag_name: refs/tags/v${{ env.REVISION }}
+          changelog: CHANGELOG.md
+
+      - name: Create version from commitizen and short sha
+        id: versioner
+        run: |
+          echo "version=${{ steps.cz.outputs.version }}.dev+${{ steps.sha.outputs.sha_short }}" >> $GITHUB_OUTPUT
+
+  prerelease:
+    if: ${{ inputs.prerelease_to_codeartifact }}
+    name: Pre Release on Codeartifact
+    needs:
+      - detect-prerelease-parameters
+    uses: Orfium/github-actions/.github/workflows/poetry_code_artifact_publish.yml@master
+    with:
+      version: ${{ needs.detect-prerelease-parameters.outputs.version }}
+      is-production: false
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE: ${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}
+
+  prerelease-github:
+    if: ${{ inputs.prerelease_to_github }}
+    runs-on: ubuntu-latest
+    name: Pre Release on Github
+    needs:
+      - prerelease
+      - detect-prerelease-parameters
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Create Pre-Release Notes File
+        run: |
+          echo "${{ join(fromJson(needs.detect-prerelease-parameters.outputs.notes).notes, '') }}" > pre_release_notes.txt
+
+      - name: Create Pre-Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REF: ${{ github.ref }}
+          VERSION: ${{ needs.detect-prerelease-parameters.outputs.version }}
+        run: |
+          gh release create $GITHUB_REF \
+          --title "PreRelease v$VERSION" \
+          --notes-file "$GITHUB_WORKSPACE/pre_release_notes.txt" \
+          --prerelease \
+          --draft

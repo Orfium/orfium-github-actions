@@ -1,0 +1,37 @@
+on:
+  workflow_call:
+    inputs:
+      python_version:
+        required: false
+        default: '3.10'
+        type: string
+    secrets:
+      ACCESS_TOKEN:
+        required: true
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64
+
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.ACCESS_TOKEN }}
+          fetch-depth: 0
+
+      - name: Create bump and changelog
+        uses: commitizen-tools/commitizen-action@0.18.2
+        with:
+          github_token: ${{ secrets.ACCESS_TOKEN }}
+          branch: master
