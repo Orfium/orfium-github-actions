@@ -47,7 +47,7 @@ jobs:
       - name: Store short sha in a variable
         id: sha
         run: |
-          echo "sha_short=$(git rev-parse --short ${{ github.event.pull_request.head.sha }})" >> $GITHUB_OUTPUT
+          echo "sha_short=$(git rev-parse --short ${{ github.event.pull_request.head.sha }})" >> "$GITHUB_OUTPUT"
 
       - name: Run commitizen in order to detect version increment
         uses: commitizen-tools/commitizen-action@0.18.2
@@ -65,7 +65,7 @@ jobs:
       - name: Create version from commitizen and short sha
         id: versioner
         run: |
-          echo "version=${{ steps.cz.outputs.version }}.dev+${{ steps.sha.outputs.sha_short }}" >> $GITHUB_OUTPUT
+          echo "version=${{ steps.cz.outputs.version }}.dev+${{ steps.sha.outputs.sha_short }}" >> "$GITHUB_OUTPUT"
 
   prerelease:
     if: ${{ inputs.prerelease_to_codeartifact }}
@@ -100,7 +100,7 @@ jobs:
           GITHUB_REF: ${{ github.ref }}
           VERSION: ${{ needs.detect-prerelease-parameters.outputs.version }}
         run: |
-          gh release create $GITHUB_REF \
+          gh release create "$GITHUB_REF" \
           --title "PreRelease v$VERSION" \
           --notes-file "$GITHUB_WORKSPACE/pre_release_notes.txt" \
           --prerelease \

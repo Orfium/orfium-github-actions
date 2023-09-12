@@ -78,8 +78,8 @@ jobs:
           GITHUB_REF: ${{ github.ref }}
           VERSION: ${{ github.ref_name }}
         run: |
-          echo $GITHUB_REF
-          echo $VERSION
+          echo "$GITHUB_REF"
+          echo "$VERSION"
           gh release create $GITHUB_REF \
           --title "Release $VERSION" \
           --notes-file "$GITHUB_WORKSPACE/release_notes.txt"
