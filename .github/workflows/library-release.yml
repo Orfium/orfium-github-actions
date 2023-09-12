@@ -16,6 +16,10 @@ on:
     secrets:
       GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
         required: false
+      ACCESS_TOKEN:
+        required: true
+      GH_TOKEN:
+        required: false
 
 permissions:
   id-token: write
@@ -38,7 +42,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.ORG_ACCESS_TOKEN }}
+          token: ${{ secrets.ACCESS_TOKEN }}
           ref: ${{ github.head_ref }}
           fetch-depth: 0
       - name: Get notes
@@ -60,7 +64,7 @@ jobs:
       GPG_CODEARTIFACT_TOKEN_PASSPHRASE: ${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}
 
   release-github:
-    if: ${{ inputs.prerelease_to_github }}
+    if: ${{ inputs.release_to_github }}
     runs-on: ubuntu-latest
     name: Release on Github
     needs:
@@ -80,6 +84,6 @@ jobs:
         run: |
           echo "$GITHUB_REF"
           echo "$VERSION"
-          gh release create $GITHUB_REF \
+          gh release create "$GITHUB_REF" \
           --title "Release $VERSION" \
           --notes-file "$GITHUB_WORKSPACE/release_notes.txt"
