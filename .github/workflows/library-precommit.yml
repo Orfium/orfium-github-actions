@@ -6,11 +6,6 @@ on:
         default: '3.10'
         type: string
 
-permissions:
-  id-token: write
-  contents: write
-  pull-requests: write
-
 jobs:
   precommit:
     runs-on: ubuntu-latest

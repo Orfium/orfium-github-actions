@@ -10,11 +10,6 @@ on:
         default: '/tmp/.cache/.coverage-cache'
         type: string
 
-permissions:
-  id-token: write
-  contents: write
-  pull-requests: write
-
 jobs:
   unittest:
     runs-on: ubuntu-latest
