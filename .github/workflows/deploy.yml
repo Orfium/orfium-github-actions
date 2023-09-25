@@ -5,7 +5,7 @@ on:
     inputs:
       python_version:
         required: false
-        default: '3.10'
+        default: "3.10"
         type: string
       environment_id:
         required: true
@@ -83,7 +83,7 @@ jobs:
 
       - name: Configure AWS Credentials
         id: configure-aws-creds
-        uses: aws-actions/configure-aws-credentials@v1-node16
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ steps.extract-deployment-envs.outputs.AWS_CD_ROLE }}
           aws-region: ${{ steps.extract-deployment-envs.outputs.AWS_REGION }}
