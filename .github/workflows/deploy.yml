@@ -54,11 +54,33 @@ jobs:
           fi
           source ${{ inputs.infra_folder_path }}/environments/${{ inputs.environment_id }}.env
 
-          if [[ -z $ProductName || -z $AWS_REGION || -z $AWS_ACCOUNT_ID || -z $AWS_ACCOUNT_NAME || -z $AWS_CD_ROLE || -z $AWS_CF_ROLE ]]; then
-            echo -e "All necessary parameters must be defined, which are:\n- ProductName\n- AWS_REGION\n- AWS_ACCOUNT_ID\n- AWS_ACCOUNT_NAME\n- AWS_CD_ROLE\n- AWS_CF_ROLE"
+          if [[ -z $ProductName || -z $AWS_ACCOUNT_NAME || -z $AWS_ACCOUNT_ID ]]; then
+            echo -e "All necessary parameters must be defined, which are:\n- AWS_ACCOUNT_ID\n- AWS_ACCOUNT_NAME\n"
             exit 1
+          fi
+          echo "All necessary parameters are defined"
+
+          if [[ "$AWS_ACCOUNT_NAME" == "orfium-dev" && "$AWS_ACCOUNT_ID" == "102867326982" ]]; then
+              AWS_REGION=${AWS_REGION:="us-east-1"}
+              AWS_CD_ROLE=${AWS_CD_ROLE:="arn:aws:iam::102867326982:role/GithubDevCDRole"}
+              AWS_CF_ROLE=${AWS_CF_ROLE:="arn:aws:iam::102867326982:role/OrfiumCloudFormationExecRole"}
+          elif [[ "$AWS_ACCOUNT_NAME" == "orfium" && "$AWS_ACCOUNT_ID" == "198834624047" ]]; then
+              AWS_REGION=${AWS_REGION:="us-east-1"}
+              AWS_CD_ROLE=${AWS_CD_ROLE:="arn:aws:iam::198834624047:role/GithubProdCDRole"}
+              AWS_CF_ROLE=${AWS_CF_ROLE:="arn:aws:iam::198834624047:role/OrfiumCloudFormationExecRole"}
+          elif [[ "$AWS_ACCOUNT_NAME" == "orfium-data-dev" && "$AWS_ACCOUNT_ID" == "513905722774" ]]; then
+              AWS_REGION=${AWS_REGION:="us-east-1"}
+              AWS_CD_ROLE=${AWS_CD_ROLE:="arn:aws:iam::513905722774:role/GithubDataDevCDRole"}
+              AWS_CF_ROLE=${AWS_CF_ROLE:="arn:aws:iam::513905722774:role/OrfiumCloudFormationExecRole"}
+              CAPABILITIES="CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
+              S3_BUCKET="aws-sam-cli-managed-default-samclisourcebucket-1r3wqzdobrh6u"
+          elif [[ "$AWS_ACCOUNT_NAME" == "orfium-data" && "$AWS_ACCOUNT_ID" == "478610027546" ]]; then
+              AWS_REGION=${AWS_REGION:="us-east-1"}
+              AWS_CD_ROLE=${AWS_CD_ROLE:="arn:aws:iam::478610027546:role/GithubDataProdCDRole"}
+              AWS_CF_ROLE=${AWS_CF_ROLE:="arn:aws:iam::478610027546:role/OrfiumCloudFormationExecRole"}
           else
-            echo "All necessary parameters are defined"
+              echo "Invalid AWS account id and name combination: AWS_ACCOUNT_NAME: $AWS_ACCOUNT_NAME, AWS_ACCOUNT_ID: $AWS_ACCOUNT_ID"
+              exit 1
           fi
 
           # shellcheck disable=SC2129
