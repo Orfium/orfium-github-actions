@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python 3.10
         id: python-setup
