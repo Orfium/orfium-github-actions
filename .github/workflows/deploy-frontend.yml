@@ -20,7 +20,7 @@ jobs:
       url: ${{ steps.get-env.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - id: get-env
         run: |
@@ -56,7 +56,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup configuration
         id: config
