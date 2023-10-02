@@ -29,7 +29,7 @@ jobs:
           environment: review-${{ env.PR_NUMBER }}
           onlyRemoveDeployments: true
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1-node16
+        uses: aws-actions/configure-aws-credentials@v4.0.0
         with:
           role-to-assume: arn:aws:iam::102867326982:role/GithubDevCDRole
           aws-region: "us-east-1"
