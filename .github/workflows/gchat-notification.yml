@@ -1,0 +1,162 @@
+on:
+  workflow_call:
+    inputs:
+      application_url:
+        required: true
+        type: string
+    secrets:
+      GCHAT_WEBHOOK:
+        required: true
+
+jobs:
+  gchat-notification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Send Gchat Notification
+        id: send-gchat-notification
+        shell: python
+        run: |
+          import requests
+
+          HEADERS = {"Content-Type": "application/json; charset=UTF-8"} # Needed for the curl request
+          WEBHOOK_URL = "${{ secrets.GCHAT_WEBHOOK }}" # The GChat Webhook to send the notification
+          WORKFLOW_URL = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" # The Workflow URL for easier finding
+          WORKFLOW_NAME = "${{ github.event.workflow_run.name }}" # The name of the Workflow
+          WORKFLOW_STATUS = "${{ github.event.workflow_run.conclusion }}" # The status of the Workflow
+          REPOSITORY_NAME = "${{ github.event.workflow_run.head_repository.name }}" # The name of the Repository
+          REPOSITORY_URL = f"https://github.com/Orfium/{ REPOSITORY_NAME }" # The url of the Repository
+          APPLICATION_URL = "${{ inputs.application_url }}"
+          RESULT = ""
+
+          # Modify the workflow status to make it prettier in the Notification
+          if WORKFLOW_STATUS == "success":
+            RESULT="<font color=\"#00ff00\">succeeded</font>"
+          elif WORKFLOW_STATUS == "cancelled":
+            RESULT="<font color=\"#ffff00\">was cancelled</font>"
+          elif WORKFLOW_STATUS == "failure":
+            RESULT="<font color=\"#ff0000\">failed</font>"
+          else:
+              print("Status not yet supported by integration.")
+
+          TITLE = f"{WORKFLOW_NAME} {RESULT}"
+
+          res = requests.post(
+            WEBHOOK_URL,
+            headers=HEADERS,
+            json={
+              "cardsV2": [{
+                "card": {
+                  "sections": [{
+                    "widgets": [{
+                      "textParagraph": {
+                        "text": TITLE
+                      }
+                    }]
+                  },
+                  {
+                    "widgets": [{
+                      "columns": {
+                        "columnItems": [{
+                          "horizontalSizeStyle": "FILL_AVAILABLE_SPACE",
+                          "horizontalAlignment": "START",
+                          "verticalAlignment": "CENTER",
+                          "widgets": [{
+                            "textParagraph": {
+                              "text": REPOSITORY_NAME
+                            }
+                          }]
+                        },
+                        {
+                          "horizontalSizeStyle": "FILL_AVAILABLE_SPACE",
+                          "horizontalAlignment": "END",
+                          "verticalAlignment": "CENTER",
+                          "widgets": [{
+                            "buttonList": {
+                              "buttons": [{
+                                "text": "Open Link",
+                                "onClick": {
+                                  "openLink": {
+                                    "url": REPOSITORY_URL
+                                  }
+                                }
+                              }]
+                            }
+                          }]
+                        }]
+                      }
+                    }]
+                  },
+                  {
+                    "widgets": [{
+                      "columns": {
+                        "columnItems": [{
+                          "horizontalSizeStyle": "FILL_AVAILABLE_SPACE",
+                          "horizontalAlignment": "START",
+                          "verticalAlignment": "CENTER",
+                          "widgets": [{
+                            "textParagraph": {
+                              "text": WORKFLOW_NAME
+                            }
+                          }]
+                        },
+                        {
+                          "horizontalSizeStyle": "FILL_AVAILABLE_SPACE",
+                          "horizontalAlignment": "END",
+                          "verticalAlignment": "CENTER",
+                          "widgets": [{
+                            "buttonList": {
+                              "buttons": [{
+                                "text": "Open Link",
+                                "onClick": {
+                                  "openLink": {
+                                    "url": WORKFLOW_URL
+                                  }
+                                }
+                              }]
+                            }
+                          }]
+                        }]
+                      }
+                    }]
+                  },
+                  {
+                    "widgets": [{
+                      "columns": {
+                        "columnItems": [{
+                          "horizontalSizeStyle": "FILL_AVAILABLE_SPACE",
+                          "horizontalAlignment": "START",
+                          "verticalAlignment": "CENTER",
+                          "widgets": [{
+                            "textParagraph": {
+                              "text": APPLICATION_URL
+                            }
+                          }]
+                        },
+                        {
+                          "horizontalSizeStyle": "FILL_AVAILABLE_SPACE",
+                          "horizontalAlignment": "END",
+                          "verticalAlignment": "CENTER",
+                          "widgets": [{
+                            "buttonList": {
+                              "buttons": [{
+                                "text": "Open Link",
+                                "onClick": {
+                                  "openLink": {
+                                    "url": APPLICATION_URL
+                                  }
+                                }
+                              }]
+                            }
+                          }]
+                        }]
+                      }
+                    }]
+                  }]
+                }
+              }]
+            },
+            timeout = 10
+          )
