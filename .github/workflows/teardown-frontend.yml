@@ -37,7 +37,7 @@ jobs:
           onlyRemoveDeployments: true
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4.0.0
+        uses: aws-actions/configure-aws-credentials@v4.0.1
         with:
           role-to-assume: ${{ steps.config.outputs.cd_role }}
           aws-region: "us-east-1"
