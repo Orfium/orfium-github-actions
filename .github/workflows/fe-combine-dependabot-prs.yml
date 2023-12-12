@@ -29,7 +29,7 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         id: fetch-branch-names
         name: Fetch branch names
         with:
@@ -125,7 +125,7 @@ jobs:
           echo "excluded-branches=$EXCLUDED_BRANCHES" >> "$GITHUB_OUTPUT"
 
       # Creates a PR with the new combined branch
-      - uses: actions/github-script@v6
+      - uses: actions/github-script@v7
         name: Create Combined Pull Request
         with:
           github-token: ${{secrets.token}}
