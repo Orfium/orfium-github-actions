@@ -73,7 +73,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: false
       - name: Login to ECR
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: "${{ env.ECR_REGISTRY }}"
       - name: Set up Local Cache for Docker layers
