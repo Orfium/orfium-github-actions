@@ -42,7 +42,7 @@ on:
         required: false
         type: string
     secrets:
-      TESTRAIL_PASSWORD:
+      TESTRAIL_CI_API_KEY:
         description: Password for Orfium's TestRail account
         required: false
       GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
@@ -144,7 +144,7 @@ jobs:
       - name: Publish test results to TestRail
         if: always() && inputs.PUBLISH_TESTRAIL_RESULTS
         env:
-          TESTRAIL_PASSWORD: ${{ secrets.TESTRAIL_PASSWORD }}
+          TESTRAIL_CI_API_KEY: ${{ secrets.TESTRAIL_CI_API_KEY }}
         run: make testrail-results
 
       - name: visualise-e2e-test-reports
