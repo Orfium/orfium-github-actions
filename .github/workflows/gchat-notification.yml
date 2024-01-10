@@ -4,6 +4,16 @@ on:
       application_url:
         required: true
         type: string
+      # Inputs only applicable for Pull Request Trigger
+      # Preferrably only for Teardown Workflows but works for all PR Triggers
+      job_status:
+        required: false
+        type: string
+        default: "None"
+      workflow_run_id:
+        required: false
+        type: string
+        default: "None"
     secrets:
       GCHAT_WEBHOOK:
         required: true
@@ -21,13 +31,28 @@ jobs:
         run: |
           import requests
 
+          GITHUB_EVENT = "${{ github.event_name }}"
+          if GITHUB_EVENT == "workflow_run":
+            REPOSITORY_NAME = "${{ github.event.workflow_run.head_repository.name }}" # The name of the Repository
+            REPOSITORY_URL = f"https://github.com/Orfium/{ REPOSITORY_NAME }" # The url of the Repository
+            WORKFLOW_URL = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+            WORKFLOW_NAME = "${{ github.event.workflow_run.name }}" # The name of the Workflow
+            WORKFLOW_STATUS = "${{ github.event.workflow_run.conclusion }}" # The status of the Workflow
+          elif GITHUB_EVENT == "pull_request" or GITHUB_EVENT == "pull_request_target": # Handle Teardown Workflows that are missing Context on pull_request type: Closed
+            if "${{ inputs.job_status }}" == "None" or "${{ inputs.workflow_run_id }}" == "None":
+              print ("Necessary workflow inputs were not provided. Exiting")
+              exit (1)
+            REPOSITORY_NAME = "${{ github.repository }}" # The name of the Repository
+            REPOSITORY_URL = f"https://github.com/{ REPOSITORY_NAME }" # The url of the Repository
+            WORKFLOW_URL = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ inputs.workflow_run_id }}"
+            WORKFLOW_NAME = "${{ github.workflow }}" # The name of the Workflow
+            WORKFLOW_STATUS = "${{ inputs.job_status }}" # The status of the Workflow
+          else:
+            print (f"GitHub Event {GITHUB_EVENT}, not supported by the Workflow")
+            exit(1)
+
           HEADERS = {"Content-Type": "application/json; charset=UTF-8"} # Needed for the curl request
           WEBHOOK_URL = "${{ secrets.GCHAT_WEBHOOK }}" # The GChat Webhook to send the notification
-          WORKFLOW_URL = "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}" # The Workflow URL for easier finding
-          WORKFLOW_NAME = "${{ github.event.workflow_run.name }}" # The name of the Workflow
-          WORKFLOW_STATUS = "${{ github.event.workflow_run.conclusion }}" # The status of the Workflow
-          REPOSITORY_NAME = "${{ github.event.workflow_run.head_repository.name }}" # The name of the Repository
-          REPOSITORY_URL = f"https://github.com/Orfium/{ REPOSITORY_NAME }" # The url of the Repository
           APPLICATION_URL = "${{ inputs.application_url }}"
           RESULT = ""
 
