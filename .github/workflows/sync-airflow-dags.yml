@@ -26,7 +26,7 @@ jobs:
         id: set-environment
         run: |
           # shellcheck disable=SC2016
-          cat ${{ inputs.infra_folder_path }}/environments/${{ inputs.target_environment }}.env >> $GITHUB_ENV
+          cat ${{ inputs.infra_folder_path }}/environments/${{ inputs.target_environment }}.env >> "$GITHUB_ENV"
 
       - name: Configure AWS Credentials
         id: configure-aws-creds
@@ -40,24 +40,24 @@ jobs:
         id: s3-copy
         shell: bash
         run: |
-          # shellcheck disable=SC2016
           echo "Retrieving dags S3 bucket from CloudFormation stack"
+          # shellcheck disable=SC2016
           DAGS_BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name ${{ inputs.stack_name }} \
+            --stack-name "${{ inputs.stack_name }}" \
             --query 'Stacks[0].Outputs[?OutputKey==`AirflowDagsBucket`].OutputValue' \
             --output text)
           echo "Copy dags folder to S3"
-          echo "DAGS_BUCKET=$DAGS_BUCKET" >> $GITHUB_OUTPUT
-          aws s3 sync airflow_dags/ s3://$DAGS_BUCKET/
+          echo "DAGS_BUCKET=$DAGS_BUCKET" >> "$GITHUB_OUTPUT"
+          aws s3 sync airflow_dags/ "s3://$DAGS_BUCKET/"
 
       - name: Copy dags from S3 to EFS
         id: data-sync
         shell: bash
         run: |
-          # shellcheck disable=SC2016
           echo "Run data sync to copy dags from S3 to EFS"
+          # shellcheck disable=SC2016
           DATASYNC_TASK_ARN=$(aws cloudformation describe-stacks \
-            --stack-name ${{ inputs.stack_name }} \
+            --stack-name "${{ inputs.stack_name }}" \
             --query 'Stacks[0].Outputs[?OutputKey==`DataSyncTaskArn`].OutputValue' \
             --output text)
-          aws datasync start-task-execution --task-arn $DATASYNC_TASK_ARN
+          aws datasync start-task-execution --task-arn "$DATASYNC_TASK_ARN"
