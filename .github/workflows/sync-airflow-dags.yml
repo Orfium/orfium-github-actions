@@ -1,0 +1,60 @@
+on:
+  workflow_call:
+    inputs:
+      stack_name:
+        required: true
+        type: string
+      target_environment:
+        required: true
+        type: string
+      infra_folder_path:
+        required: false
+        type: string
+        default: infra-airflow/        
+      role_to_assume:
+        required: true
+        type: string
+jobs:
+  sync-dags:
+    name: Sync dags to Airflow
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set deployment env
+        id: set-environment
+        run: |
+          cat ${{ inputs.infra_folder_path }}/environments/${{ inputs.target_environment }}.env >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          role-to-assume: ${{ inputs.role_to_assume }}
+          aws-region: us-east-1
+          mask-aws-account-id: false
+
+      - name: Copy dags to S3 bucket
+        id: s3-copy
+        shell: bash
+        run: |
+          echo "Retrieving dags S3 bucket from CloudFormation stack"
+          DAGS_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name ${{ inputs.stack_name }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`AirflowDagsBucket`].OutputValue' \
+            --output text)
+          echo "Copy dags folder to S3"
+          echo "DAGS_BUCKET=$DAGS_BUCKET" >> $GITHUB_OUTPUT
+          aws s3 sync airflow_dags/ s3://$DAGS_BUCKET/
+
+      - name: Copy dags from S3 to EFS
+        id: data-sync
+        shell: bash
+        run: |
+          echo "Run data sync to copy dags from S3 to EFS"
+          DATASYNC_TASK_ARN=$(aws cloudformation describe-stacks \
+            --stack-name ${{ inputs.stack_name }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`DataSyncTaskArn`].OutputValue' \
+            --output text)
+          aws datasync start-task-execution --task-arn $DATASYNC_TASK_ARN

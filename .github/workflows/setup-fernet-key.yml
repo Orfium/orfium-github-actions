@@ -1,0 +1,72 @@
+on:
+  workflow_call:
+    inputs:
+      stack_name:
+        required: true
+        type: string
+      secret_name:
+        required: true
+        type: string
+      role_to_assume:
+        required: true
+        type: string
+    outputs:
+      fernet-key:
+        value: ${{ jobs.fernet.outputs.fernet-key }}
+      stack_name:
+        value: ${{ jobs.fernet.outputs.stack_name }}
+      secret-arn:
+        value: ${{ jobs.fernet.outputs.secret-arn }}
+
+jobs:
+  fernet:
+    runs-on: ubuntu-latest
+    outputs:
+      fernet-key: ${{ steps.fernet-key.outputs.FERNET_KEY }}
+      stack_name: ${{ steps.fernet-key.outputs.STACK_NAME }}
+      secret-arn: ${{ steps.app-secret.outputs.SECRET_ARN }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      - name: Set up Python
+        id: python-setup
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role_to_assume: ${{ inputs.role_to_assume }}
+          aws-region: us-east-1
+          mask-aws-account-id: false
+      - name: Set Fernet Key
+        id: fernet-key
+        shell: bash
+        run: |
+          STACK_NAME=${{ inputs.stack_name }} 
+          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_OUTPUT
+          if aws cloudformation describe-stacks --stack_name $STACK_NAME; then
+            echo "Stack exists, retrieving Fernet key from Airflow secret"
+            SECRET=$(aws cloudformation describe-stacks \
+              --stack_name $STACK_NAME \
+              --query 'Stacks[0].Outputs[?OutputKey==`AirflowSecretConfiguration`].OutputValue' \
+              --output text)
+            FERNET_KEY=$(aws secretsmanager get-secret-value \
+              --secret-id $SECRET \
+              --query SecretString \
+              --region us-east-1 \
+              --output text | jq -r '."AIRFLOW__CORE__FERNET_KEY"')
+            echo "FERNET_KEY=$FERNET_KEY" >> $GITHUB_OUTPUT
+          else
+            echo "This is a new Airflow deployment, creating a new Fernet Key"
+            pip install cryptography
+            FERNET_KEY=`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+            echo "FERNET_KEY=$FERNET_KEY" >> $GITHUB_OUTPUT
+          fi
+      - name: Set App Config Secret ARN
+        id: app-secret
+        run: | #pragma: allowlist secret
+          SECRET_NAME=${{ inputs.secret_name }}
+          SECRET_ARN=$(aws secretsmanager get-secret-value --secret-id $SECRET_NAME | jq --raw-output '.ARN')
+          echo "SECRET_ARN=$SECRET_ARN" >> $GITHUB_OUTPUT
