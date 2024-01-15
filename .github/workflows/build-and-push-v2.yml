@@ -1,0 +1,111 @@
+on:
+  workflow_call:
+    inputs:
+      aws_cd_role:
+        required: true
+        type: string
+      aws_region:
+        required: true
+        type: string
+      ecr_registry:
+        required: true
+        type: string
+      codeartifact_encrypted_token_dev:
+        required: false
+        type: string
+      codeartifact_encrypted_token_prod:
+        required: false
+        type: string
+      stable:
+        required: true
+        type: string
+    outputs:
+      ecr-image:
+        description: "The application's image"
+        value: ${{ jobs.build-and-push.outputs.ecr-image }}
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: false
+
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      ecr-image: ${{ steps.ecr-image-out.outputs.ECR_IMAGE }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        # # We are overriding the default buildkit version being used by Buildx. We need buildkit >= 12.0 and currently BuildX
+        # supports v0.11.6 https://github.com/docker/buildx/blob/b8739d74417f86aa8fc9aafb830a8ba656bdef0e/Dockerfile#L9.
+        # We should for any updates on buildx and on the setup-buildx-action itself.
+        with:
+          driver-opts: |
+            image=moby/buildkit:v0.12.0
+
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v4.0.1
+        with:
+          role-to-assume: ${{ inputs.aws_cd_role }}
+          aws-region: ${{ inputs.aws_region }}
+          mask-aws-account-id: false
+
+      - name: Login to ECR
+        uses: docker/login-action@v3
+        with:
+          registry: "${{ inputs.ecr_registry }}"
+      
+      - name: Decrypt Codeartifact dev token
+        if: "${{ inputs.codeartifact_encrypted_token_dev != '' }}"
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_dev }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN_DEV=$token" >> "$GITHUB_ENV"
+          
+      - name: Decrypt Codeartifact prod token
+        if: "${{ inputs.codeartifact_encrypted_token_prod != '' }}"
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_prod }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN_PROD=$token" >> "$GITHUB_ENV"
+
+      - name: Build And Push Stable Docker Image
+        uses: docker/build-push-action@v5
+        if: "${{ inputs.stable == 'true' }}"
+        with:
+          push: true
+          tags: ${{ inputs.ecr_registry }}:${{ github.sha }}
+          cache-from: ${{ inputs.ecr_registry }}:stable
+          cache-to: type=registry,ref=${{ inputs.ecr_registry }}:stable,mode=max,image-manifest=true,oci-mediatypes=true
+          target: production
+          secrets: |  # pragma: allowlist secret
+            CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
+            CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
+
+      - name: Build And Push Latest Docker Image
+        uses: docker/build-push-action@v5
+        if: "${{ inputs.stable != 'true' }}"
+        with:
+          push: true
+          tags: ${{ inputs.ecr_registry }}:${{ github.sha }}
+          cache-from: ${{ inputs.ecr_registry }}:latest
+          cache-to: type=registry,ref=${{ inputs.ecr_registry }}:latest,mode=max,image-manifest=true,oci-mediatypes=true
+          target: production
+          secrets: |  # pragma: allowlist secret
+            CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
+            CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
+
+      - name: Output ECR image
+        id: ecr-image-out
+        shell: bash
+        run: |
+          ECR_IMAGE=${{ inputs.ecr_registry }}:${{ github.sha }}
+          echo "ECR_IMAGE=$ECR_IMAGE" >> "$GITHUB_OUTPUT"
+          echo "The ECR image arn is $ECR_IMAGE"
