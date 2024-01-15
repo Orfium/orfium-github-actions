@@ -1,0 +1,103 @@
+---
+name: Gather Migrations Requirements
+
+on:
+  workflow_call:
+    inputs:
+      infra_folder_path:
+        required: false
+        type: string
+      environment_id:
+        required: true
+        type: string
+      environment_suffix:
+        required: false
+        type: string
+    outputs:
+      ecs-cluster-arn:
+        description: "The ECS Cluster ARN"
+        value: ${{ jobs.retrieve-cluster-parameters.outputs.ecs-cluster-arn }}
+      ecs-service-arn:
+        description: "The ECS Service ARN"
+        value: ${{ jobs.retrieve-cluster-parameters.outputs.ecs-service-arn }}
+      cd-role-arn:
+        description: "The CD Role ARN"
+        value: ${{ jobs.retrieve-cluster-parameters.outputs.cd-role-arn }}
+      region:
+        description: "The region"
+        value: ${{ jobs.retrieve-cluster-parameters.outputs.region }}
+
+jobs:
+  set-environment-variables:
+    runs-on: ubuntu-latest
+    outputs:
+      infra_folder_path: ${{ steps.infra-folder-path.outputs.infra_folder_path }}
+    steps:
+      - name: Check infra folder path
+        id: infra-folder-path
+        run: |
+          # shellcheck disable=SC2016
+          FOLDER_PATH=${{ inputs.infra_folder_path }}
+          if [[ -z $FOLDER_PATH ]]; then
+            FOLDER_PATH=infra/
+          else
+            FOLDER_PATH=${{ inputs.infra_folder_path }}/
+          fi
+          echo "infra_folder_path=$FOLDER_PATH" >> "$GITHUB_OUTPUT"
+
+  retrieve-cluster-parameters:
+    needs:
+      - set-environment-variables
+    runs-on: ubuntu-latest
+    outputs:
+      ecs-cluster-arn: ${{ steps.check-init-deploy.outputs.ECS_CLUSTER_ARN }}
+      ecs-service-arn: ${{ steps.check-init-deploy.outputs.ECS_SERVICE_ARN }}
+      cd-role-arn: ${{ steps.check-init-deploy.outputs.AWS_CD_ROLE }}
+      region: ${{ steps.check-init-deploy.outputs.AWS_REGION }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set deployment env
+        id: set-environment
+        run: |
+          cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/${{ inputs.environment_id }}.env >> "$GITHUB_ENV"
+
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v4.0.0
+        with:
+          role-to-assume: ${{ env.AWS_CD_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: false
+
+      - name: Gather run python migrations requirements
+        id: check-init-deploy
+        run: |
+          # shellcheck disable=SC2016
+          INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
+          if [[ -z $INPUT_ENV_SUFFIX ]]; then
+            ECS_CLUSTER_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.ProductName }}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`ClusterArn`].OutputValue' \
+              --output text)
+            ECS_SERVICE_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.ProductName }}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`ApiServiceArn`].OutputValue' \
+              --output text)
+          else
+
+            ECS_CLUSTER_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.ProductName }}-${{ github.event.pull_request.number }}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`ClusterArn`].OutputValue' \
+              --output text)
+            ECS_SERVICE_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.ProductName }}-${{ github.event.pull_request.number }}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`ApiServiceArn`].OutputValue' \
+              --output text)
+          fi
+          # shellcheck disable=SC2129
+          echo "ECS_CLUSTER_ARN=$ECS_CLUSTER_ARN" >> "$GITHUB_OUTPUT"
+          echo "ECS_SERVICE_ARN=$ECS_SERVICE_ARN" >> "$GITHUB_OUTPUT"
+          echo "AWS_CD_ROLE=${{ env.AWS_CD_ROLE }}" >> "$GITHUB_OUTPUT"
+          echo "AWS_REGION=${{ env.AWS_REGION }}" >> "$GITHUB_OUTPUT"
