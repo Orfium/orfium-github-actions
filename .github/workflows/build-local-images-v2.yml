@@ -1,0 +1,149 @@
+on:
+  workflow_call:
+    inputs:
+      environment_id:
+        required: true
+        type: string
+      environment_suffix:
+        required: false
+        type: string
+      infra_folder_path:
+        required: false
+        type: string
+        default: infra
+      BUILDX_LOCAL_CACHE_DIR:
+        required: false
+        type: string
+      codeartifact_encrypted_token_dev:
+        type: string
+        required: false
+      codeartifact_encrypted_token_prod:
+        type: string
+        required: false
+      docker_target:
+        required: false
+        type: string
+        description: This is the target of the build.
+        default: local
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: false
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  build-local-images:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          
+      - name: Extract Deployment Variables to Output
+        id: extract-deployment-envs
+        run: |
+          set -o allexport
+          
+          if [ -f "${{ inputs.infra_folder_path }}/environments/common.env" ]; then
+            source ${{ inputs.infra_folder_path }}/environments/common.env
+          else
+            echo "No common.env file has been found. Disregarding it."
+          fi
+          source ${{ inputs.infra_folder_path }}/environments/${{ inputs.environment_id }}.env
+          
+          if [[ -z $ProductName || -z $AWS_REGION || -z $AWS_CD_ROLE || -z $ECR_REGISTRY ]]; then
+            echo -e "All necessary parameters must be defined, which are:\n- ProductName\n- AWS_REGION\n- AWS_CD_ROLE\n- ECR_REGISTRY"
+            exit 1
+          else
+            echo "All necessary parameters are defined"
+          fi
+          
+          # shellcheck disable=SC2129
+          echo "ProductName=$ProductName" >> "$GITHUB_OUTPUT"
+          echo "AWS_REGION=$AWS_REGION" >> "$GITHUB_OUTPUT"
+          echo "AWS_CD_ROLE=$AWS_CD_ROLE" >> "$GITHUB_OUTPUT"
+          echo "ECR_REGISTRY=$ECR_REGISTRY" >> "$GITHUB_OUTPUT"
+          
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        # # We are overriding the default buildkit version being used by Buildx. We need buildkit >= 12.0 and currently BuildX
+        # supports v0.11.6 https://github.com/docker/buildx/blob/b8739d74417f86aa8fc9aafb830a8ba656bdef0e/Dockerfile#L9.
+        # We should for any updates on buildx and on the setup-buildx-action itself.
+        with:
+          driver-opts: |
+            image=moby/buildkit:v0.12.0
+            
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v4.0.1
+        with:
+          role-to-assume: ${{ steps.extract-deployment-envs.outputs.AWS_CD_ROLE }}
+          aws-region: ${{ steps.extract-deployment-envs.outputs.AWS_REGION }}
+          
+      - name: Login to ECR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}
+          
+      - name: Set up Local Cache for Docker layers
+        uses: actions/cache@v4
+        with:
+          path: ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+          key: ${{ runner.os }}-buildx-local-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-local-
+            
+      - name: Decrypt Codeartifact dev token
+        if: "${{ inputs.codeartifact_encrypted_token_dev != '' }}"
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_dev }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN_DEV=$token" >> "$GITHUB_ENV"
+          
+      - name: Decrypt Codeartifact prod token
+        if: "${{ inputs.codeartifact_encrypted_token_prod != '' }}"
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_prod }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN_PROD=$token" >> "$GITHUB_ENV"
+          
+      - name: Build local image from Cache
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          target: ${{ inputs.docker_target }}
+          tags: ${{ github.event.repository.name }}
+          cache-from: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:dev
+          cache-to: |
+            type=registry,ref=${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:dev,mode=max,image-manifest=true,oci-mediatypes=true
+            type=local,dest=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}-new,mode=max
+          secrets: |
+            "CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}"
+            "CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}"
+            
+      - name: Build local image
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          target: ${{ inputs.docker_target }}
+          tags: ${{ github.event.repository.name }}
+          cache-from: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:dev
+          cache-to: type=registry,ref=${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:dev,mode=max,image-manifest=true,oci-mediatypes=true
+          secrets: |
+            "CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}"
+            "CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}"
+            
+      - name: Refresh Local cache
+        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        run: |
+          rm -rf ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+          mv ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}-new ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+        # Temp fix
+        # https://github.com/docker/build-push-action/issues/252
+        # https://github.com/moby/buildkit/issues/1896
+
