@@ -25,6 +25,7 @@ jobs:
       - name: Set deployment env
         id: set-environment
         run: |
+          # shellcheck disable=SC2016
           cat ${{ inputs.infra_folder_path }}/environments/${{ inputs.target_environment }}.env >> $GITHUB_ENV
 
       - name: Configure AWS Credentials
@@ -39,6 +40,7 @@ jobs:
         id: s3-copy
         shell: bash
         run: |
+          # shellcheck disable=SC2016
           echo "Retrieving dags S3 bucket from CloudFormation stack"
           DAGS_BUCKET=$(aws cloudformation describe-stacks \
             --stack-name ${{ inputs.stack_name }} \
@@ -52,6 +54,7 @@ jobs:
         id: data-sync
         shell: bash
         run: |
+          # shellcheck disable=SC2016
           echo "Run data sync to copy dags from S3 to EFS"
           DATASYNC_TASK_ARN=$(aws cloudformation describe-stacks \
             --stack-name ${{ inputs.stack_name }} \

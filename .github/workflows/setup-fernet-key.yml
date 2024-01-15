@@ -44,6 +44,7 @@ jobs:
         id: fernet-key
         shell: bash
         run: |
+          # shellcheck disable=SC2016
           STACK_NAME=${{ inputs.stack_name }} 
           echo "STACK_NAME=$STACK_NAME" >> $GITHUB_OUTPUT
           if aws cloudformation describe-stacks --stack_name $STACK_NAME; then
@@ -67,6 +68,7 @@ jobs:
       - name: Set App Config Secret ARN
         id: app-secret
         run: | #pragma: allowlist secret
+          # shellcheck disable=SC2016
           SECRET_NAME=${{ inputs.secret_name }}
           SECRET_ARN=$(aws secretsmanager get-secret-value --secret-id $SECRET_NAME | jq --raw-output '.ARN')
           echo "SECRET_ARN=$SECRET_ARN" >> $GITHUB_OUTPUT
