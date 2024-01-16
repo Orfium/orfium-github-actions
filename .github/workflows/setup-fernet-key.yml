@@ -13,8 +13,6 @@ on:
     outputs:
       fernet-key:
         value: ${{ jobs.fernet.outputs.fernet-key }}
-      stack_name:
-        value: ${{ jobs.fernet.outputs.stack_name }}
       secret-arn:
         value: ${{ jobs.fernet.outputs.secret-arn }}
 
@@ -23,7 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       fernet-key: ${{ steps.fernet-key.outputs.FERNET_KEY }}
-      stack_name: ${{ steps.fernet-key.outputs.STACK_NAME }}
       secret-arn: ${{ steps.app-secret.outputs.SECRET_ARN }}
 
     steps:
@@ -35,17 +32,16 @@ jobs:
         with:
           python-version: "3.10"
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4.0.1
         with:
           role_to_assume: ${{ inputs.role_to_assume }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: false
       - name: Set Fernet Key
         id: fernet-key
         shell: bash
         run: |
           STACK_NAME="${{ inputs.stack_name }}" 
-          echo "STACK_NAME=$STACK_NAME" >> "$GITHUB_OUTPUT"
           # shellcheck disable=SC2016
           if aws cloudformation describe-stacks --stack_name $STACK_NAME; then
             echo "Stack exists, retrieving Fernet key from Airflow secret"

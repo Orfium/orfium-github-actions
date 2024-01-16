@@ -4,7 +4,7 @@ on:
       stack_name:
         required: true
         type: string
-      target_environment:
+      environment_id:
         required: true
         type: string
       infra_folder_path:
@@ -14,6 +14,10 @@ on:
       role_to_assume:
         required: true
         type: string
+      airflow_dags_folder:
+        required: false
+        type: string
+        default: airflow_dags
 jobs:
   sync-dags:
     name: Sync dags to Airflow
@@ -26,14 +30,14 @@ jobs:
         id: set-environment
         run: |
           # shellcheck disable=SC2016
-          cat ${{ inputs.infra_folder_path }}/environments/${{ inputs.target_environment }}.env >> "$GITHUB_ENV"
+          cat ${{ inputs.infra_folder_path }}/environments/${{ inputs.environment_id }}.env >> "$GITHUB_ENV"
 
       - name: Configure AWS Credentials
         id: configure-aws-creds
-        uses: aws-actions/configure-aws-credentials@v1-node16
+        uses: aws-actions/configure-aws-credentials@v4.0.1
         with:
           role-to-assume: ${{ inputs.role_to_assume }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: false
 
       - name: Copy dags to S3 bucket
@@ -48,7 +52,7 @@ jobs:
             --output text)
           echo "Copy dags folder to S3"
           echo "DAGS_BUCKET=$DAGS_BUCKET" >> "$GITHUB_OUTPUT"
-          aws s3 sync airflow_dags/ "s3://$DAGS_BUCKET/"
+          aws s3 sync "${{ inputs.airflow_dags_folder }}/" "s3://$DAGS_BUCKET/"
 
       - name: Copy dags from S3 to EFS
         id: data-sync
