@@ -50,7 +50,7 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4.0.1
         with:
-          role_to_assume: ${{ inputs.role_to_assume }}
+          role-to-assume: ${{ inputs.role_to_assume }}
           aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: false
 
