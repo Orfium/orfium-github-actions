@@ -31,10 +31,7 @@ jobs:
         run: |
           # shellcheck disable=SC2016
           cat ${{ inputs.infra_folder_path }}/environments/${{ inputs.environment_id }}.env >> "$GITHUB_ENV"
-
-      - name: Set deployment env
-        id: set-environment
-        run: |
+          
           if [ ${{ github.event_name }} == 'pull_request' ]; then
             echo "This is a review environment"
             cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/review.env >> "$GITHUB_ENV"
