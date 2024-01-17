@@ -26,17 +26,30 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
+
       - name: Set up Python
         id: python-setup
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
+
+      - name: Set deployment env
+        id: set-environment
+        run: |
+          if [ ${{ github.event_name }} == 'pull_request' ]; then
+            echo "This is a review environment"
+            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/review.env >> "$GITHUB_ENV"
+          else
+            echo "This is a production environment"
+            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/production.env >> "$GITHUB_ENV"
+          fi
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4.0.1
         with:
           role_to_assume: ${{ inputs.role_to_assume }}
           aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: false
+
       - name: Set Fernet Key
         id: fernet-key
         shell: bash
@@ -62,6 +75,7 @@ jobs:
             FERNET_KEY=`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
             echo "FERNET_KEY=$FERNET_KEY" >> "$GITHUB_OUTPUT"
           fi
+
       - name: Set App Config Secret ARN
         id: app-secret
         run: | #pragma: allowlist secret
