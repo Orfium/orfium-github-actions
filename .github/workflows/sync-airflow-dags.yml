@@ -34,10 +34,10 @@ jobs:
           
           if [ ${{ github.event_name }} == 'pull_request' ]; then
             echo "This is a review environment"
-            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/review.env >> "$GITHUB_ENV"
+            cat ${{ inputs.infra_folder_path }}/environments/review.env >> "$GITHUB_ENV"
           else
             echo "This is a production environment"
-            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/production.env >> "$GITHUB_ENV"
+            cat ${{ inputs.infra_folder_path }}/environments/production.env >> "$GITHUB_ENV"
           fi
 
       - name: Configure AWS Credentials
