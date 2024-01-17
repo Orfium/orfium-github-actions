@@ -76,6 +76,7 @@ jobs:
 
       - name: Set App Config Secret ARN
         id: app-secret
+        if: "${{ inputs.secret_name != '' }}"
         run: | #pragma: allowlist secret
           # shellcheck disable=SC2016
           SECRET_NAME="${{ inputs.secret_name }}"
