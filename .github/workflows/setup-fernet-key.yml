@@ -4,11 +4,11 @@ on:
       stack_name:
         required: true
         type: string
-      secret_name:
+      environment_id:
         required: true
         type: string
-      role_to_assume:
-        required: true
+      secret_name:
+        required: false
         type: string
       infra_folder_path:
         required: false
@@ -40,17 +40,11 @@ jobs:
       - name: Set deployment env
         id: set-environment
         run: |
-          if [ ${{ github.event_name }} == 'pull_request' ]; then
-            echo "This is a review environment"
-            cat ${{ inputs.infra_folder_path }}/environments/review.env >> "$GITHUB_ENV"
-          else
-            echo "This is a production environment"
-            cat ${{ inputs.infra_folder_path }}/environments/production.env >> "$GITHUB_ENV"
-          fi
+          cat ${{ inputs.infra_folder_path }}/environments/${{ inputs.environment_id }}.env >> "$GITHUB_ENV"
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4.0.1
         with:
-          role-to-assume: ${{ inputs.role_to_assume }}
+          role-to-assume: ${{ env.AWS_CD_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: false
 

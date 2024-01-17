@@ -10,10 +10,7 @@ on:
       infra_folder_path:
         required: false
         type: string
-        default: infra-airflow/        
-      role_to_assume:
-        required: true
-        type: string
+        default: infra-airflow/
       airflow_dags_folder:
         required: false
         type: string
@@ -31,20 +28,12 @@ jobs:
         run: |
           # shellcheck disable=SC2016
           cat ${{ inputs.infra_folder_path }}/environments/${{ inputs.environment_id }}.env >> "$GITHUB_ENV"
-          
-          if [ ${{ github.event_name }} == 'pull_request' ]; then
-            echo "This is a review environment"
-            cat ${{ inputs.infra_folder_path }}/environments/review.env >> "$GITHUB_ENV"
-          else
-            echo "This is a production environment"
-            cat ${{ inputs.infra_folder_path }}/environments/production.env >> "$GITHUB_ENV"
-          fi
 
       - name: Configure AWS Credentials
         id: configure-aws-creds
         uses: aws-actions/configure-aws-credentials@v4.0.1
         with:
-          role-to-assume: ${{ inputs.role_to_assume }}
+          role-to-assume: ${{ env.AWS_CD_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: false
 
