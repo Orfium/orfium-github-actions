@@ -13,7 +13,7 @@ on:
       infra_folder_path:
         required: false
         type: string
-        default: infra-airflow/
+        default: infra
     outputs:
       fernet-key:
         value: ${{ jobs.fernet.outputs.fernet-key }}
@@ -41,6 +41,7 @@ jobs:
         id: set-environment
         run: |
           cat ${{ inputs.infra_folder_path }}/environments/${{ inputs.environment_id }}.env >> "$GITHUB_ENV"
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4.0.1
         with:

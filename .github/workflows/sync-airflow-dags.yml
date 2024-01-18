@@ -10,7 +10,7 @@ on:
       infra_folder_path:
         required: false
         type: string
-        default: infra-airflow/
+        default: infra
       airflow_dags_folder:
         required: false
         type: string
