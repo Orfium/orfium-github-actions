@@ -1,0 +1,72 @@
+name: 'Docker build'
+description: 'Build an image using docker buildx and image caching from ECR'
+inputs:
+  inputs:
+    BUILDX_LOCAL_CACHE_DIR:
+      required: false
+      type: string
+    codeartifact_encrypted_token_dev:
+      required: false
+      type: string
+    codeartifact_encrypted_token_prod:
+      required: false
+      type: string
+  secrets:
+    GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+      required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Decrypt Codeartifact dev token
+      if: "${{ inputs.codeartifact_encrypted_token_dev != '' }}"
+      run: |
+        token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_dev }}" | base64 --decode))
+        echo "::add-mask::$token"
+        echo "CODEARTIFACT_TOKEN_DEV=$token" >> "$GITHUB_ENV"
+    
+    - name: Decrypt Codeartifact prod token
+      if: "${{ inputs.codeartifact_encrypted_token_prod != '' }}"
+      run: |
+        token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_prod }}" | base64 --decode))
+        echo "::add-mask::$token"
+        echo "CODEARTIFACT_TOKEN_PROD=$token" >> "$GITHUB_ENV"
+    
+    - name: Set up Local Cache for Docker layers
+      if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+      uses: actions/cache@v3
+      with:
+        path: ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+        key: ${{ runner.os }}-buildx-local-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-local-
+  
+    
+    - name: Build local image from Cache
+      if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+      uses: docker/build-push-action@v5
+      with:
+        push: false
+        load: true
+        target: local
+        tags: ${{ github.event.repository.name }}
+        cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+        secrets: |
+          CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
+          CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
+    
+    - name: Build local image
+      if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
+      uses: docker/build-push-action@v5
+      with:
+        push: false
+        load: true
+        target: local
+        tags: ${{ github.event.repository.name }}
+        secrets: |
+          CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
+          CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}

@@ -26,58 +26,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Set up Local Cache for Docker layers
-        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
-        uses: actions/cache@v3
-        with:
-          path: ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
-          key: ${{ runner.os }}-buildx-local-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-local-
-      
-      - name: Decrypt Codeartifact dev token
-        if: "${{ inputs.codeartifact_encrypted_token_dev != '' }}"
-        run: |
-          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_dev }}" | base64 --decode))
-          echo "::add-mask::$token"
-          echo "CODEARTIFACT_TOKEN_DEV=$token" >> "$GITHUB_ENV"
-
-      - name: Decrypt Codeartifact prod token
-        if: "${{ inputs.codeartifact_encrypted_token_prod != '' }}"
-        run: |
-          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_prod }}" | base64 --decode))
-          echo "::add-mask::$token"
-          echo "CODEARTIFACT_TOKEN_PROD=$token" >> "$GITHUB_ENV"
-
-      - name: Build local image from Cache
-        if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
-        uses: docker/build-push-action@v5
-        with:
-          push: false
-          load: true
-          target: local
-          tags: ${{ github.event.repository.name }}
-          cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
-          secrets: |
-            CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
-            CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
-      
-      - name: Build local image
+          
+      - name: Build image
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
-        uses: docker/build-push-action@v5
+        uses: Orfium/orfium-github-actions/.github/actions/docker-build@feat/BEC-446_v2_reusable_workflows
         with:
-          push: false
-          load: true
-          target: local
-          tags: ${{ github.event.repository.name }}
-          secrets: |
-            CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
-            CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
+          BUILDX_LOCAL_CACHE_DIR: ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+          codeartifact_encrypted_token_dev: ${{ inputs.codeartifact_encrypted_token_dev }}
+          codeartifact_encrypted_token_prod: ${{ inputs.codeartifact_encrypted_token_prod }}
       
       - name: Run pre commit
         run: make pre-commit args="--all-files"
