@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Declare Coverage Cache Registry
         id: coverage-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ inputs.COVERAGE_CACHE_DIR }}
           key: ${{ runner.os }}-coverage-reports-${{ github.sha }}

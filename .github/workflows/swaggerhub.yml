@@ -38,7 +38,7 @@ jobs:
       
       - name: Set up Local Cache for Docker layers
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
           key: ${{ runner.os }}-buildx-local-${{ github.sha }}
