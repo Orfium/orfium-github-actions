@@ -107,7 +107,6 @@ jobs:
           npm config set @orfium:registry https://npm.pkg.github.com
           npm config set always-auth true || echo "This fails for versions > 18.13"
           yarn config set @orfium:registry https://npm.pkg.github.com
-          yarn config set registry https://npm.pkg.github.com
 
       - name: Setup env, install dependencies, and build app
         run: |
