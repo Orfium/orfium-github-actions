@@ -77,7 +77,7 @@ jobs:
         with:
           registry: "${{ env.ECR_REGISTRY }}"
       - name: Set up Local Cache for Docker layers
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
           key: ${{ runner.os }}-buildx-local-${{ github.sha }}
