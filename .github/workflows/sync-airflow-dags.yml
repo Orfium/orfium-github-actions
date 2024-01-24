@@ -49,7 +49,7 @@ jobs:
             --output text)
           echo "Copy dags folder to S3"
           echo "DAGS_BUCKET=$DAGS_BUCKET" >> "$GITHUB_OUTPUT"
-          aws s3 sync "${{ inputs.airflow_dags_folder }}/" "s3://$DAGS_BUCKET/"
+          aws s3 sync "${{ inputs.airflow_dags_folder }}/" "s3://$DAGS_BUCKET/" --delete
 
       - name: Copy dags from S3 to EFS
         id: data-sync
