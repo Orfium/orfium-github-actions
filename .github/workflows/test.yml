@@ -98,7 +98,7 @@ jobs:
       - name: Configure AWS credentials
         id: test-aws-configure
         if: ${{ inputs.ECR_LOGIN_FLAG }}
-        uses: aws-actions/configure-aws-credentials@v4.0.1
+        uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
           role-to-assume: ${{ inputs.AWS_CD_ROLE }}
           aws-region: ${{ inputs.ECR_REGION }}
