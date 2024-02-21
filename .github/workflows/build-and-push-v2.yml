@@ -1,0 +1,139 @@
+on:
+  workflow_call:
+    inputs:
+      environment_id:
+        required: true
+        type: string
+      environment_suffix:
+        required: false
+        type: string
+      infra_folder_path:
+        required: false
+        type: string
+        default: infra
+      codeartifact_encrypted_token_dev:
+        required: false
+        type: string
+      codeartifact_encrypted_token_prod:
+        required: false
+        type: string
+      docker_target:
+        required: false
+        type: string
+        description: This is the target of the build.
+        default: production
+    outputs:
+      ecr-image:
+        description: "The application's image"
+        value: ${{ jobs.build-and-push.outputs.ecr-image }}
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: false
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      ecr-image: ${{ steps.ecr-image-out.outputs.ECR_IMAGE }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Extract Deployment Variables to Output
+        id: extract-deployment-envs
+        run: |
+          set -o allexport
+          
+          if [ -f "${{ inputs.infra_folder_path }}/environments/common.env" ]; then
+            source ${{ inputs.infra_folder_path }}/environments/common.env
+          else
+            echo "No common.env file has been found. Disregarding it."
+          fi
+          source ${{ inputs.infra_folder_path }}/environments/${{ inputs.environment_id }}.env
+          
+          if [[ -z $ProductName || -z $AWS_REGION || -z $AWS_CD_ROLE || -z $ECR_REGISTRY ]]; then
+            echo -e "All necessary parameters must be defined, which are:\n- ProductName\n- AWS_REGION\n- AWS_CD_ROLE\n- ECR_REGISTRY"
+            exit 1
+          else
+            echo "All necessary parameters are defined"
+          fi
+          
+          # shellcheck disable=SC2129
+          echo "ProductName=$ProductName" >> "$GITHUB_OUTPUT"
+          echo "AWS_REGION=$AWS_REGION" >> "$GITHUB_OUTPUT"
+          echo "AWS_CD_ROLE=$AWS_CD_ROLE" >> "$GITHUB_OUTPUT"
+          echo "ECR_REGISTRY=$ECR_REGISTRY" >> "$GITHUB_OUTPUT"
+          
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        # # We are overriding the default buildkit version being used by Buildx. We need buildkit >= 12.0 and currently BuildX
+        # supports v0.11.6 https://github.com/docker/buildx/blob/b8739d74417f86aa8fc9aafb830a8ba656bdef0e/Dockerfile#L9.
+        # We should for any updates on buildx and on the setup-buildx-action itself.
+        with:
+          driver-opts: |
+            image=moby/buildkit:v0.12.0
+
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v4.0.1
+        with:
+          role-to-assume: ${{ steps.extract-deployment-envs.outputs.AWS_CD_ROLE }}
+          aws-region: ${{ steps.extract-deployment-envs.outputs.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}
+      
+      - name: Decrypt Codeartifact dev token
+        if: "${{ inputs.codeartifact_encrypted_token_dev != '' }}"
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_dev }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN_DEV=$token" >> "$GITHUB_ENV"
+          
+      - name: Decrypt Codeartifact prod token
+        if: "${{ inputs.codeartifact_encrypted_token_prod != '' }}"
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_prod }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN_PROD=$token" >> "$GITHUB_ENV"
+
+      - name: Build And Push Stable Docker Image
+        uses: docker/build-push-action@v5
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        with:
+          push: true
+          tags: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:${{ github.sha }}
+          cache-from: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:stable
+          cache-to: type=registry,ref=${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:stable,mode=max,image-manifest=true,oci-mediatypes=true
+          target: ${{ inputs.docker_target }}
+          secrets: |  # pragma: allowlist secret
+            CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
+            CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
+
+      - name: Build And Push Latest Docker Image
+        uses: docker/build-push-action@v5
+        if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
+        with:
+          push: true
+          tags: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:${{ github.sha }}
+          cache-from: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:latest
+          cache-to: type=registry,ref=${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:latest,mode=max,image-manifest=true,oci-mediatypes=true
+          target: ${{ inputs.docker_target }}
+          secrets: |  # pragma: allowlist secret
+            CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
+            CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
+
+      - name: Output ECR image
+        id: ecr-image-out
+        shell: bash
+        run: |
+          ECR_IMAGE=${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:${{ github.sha }}
+          echo "ECR_IMAGE=$ECR_IMAGE" >> "$GITHUB_OUTPUT"
+          echo "The ECR image arn is $ECR_IMAGE"
+

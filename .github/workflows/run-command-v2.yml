@@ -1,0 +1,200 @@
+---
+name: Run Command
+
+on:
+  workflow_call:
+    inputs:
+      infra_folder_path:
+        required: false
+        type: string
+        default: infra
+      environment_id:
+        required: true
+        type: string
+      environment_suffix:
+        required: false
+        type: string
+      command:
+        description: ""
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  retrieve-cluster-parameters:
+    runs-on: ubuntu-latest
+    outputs:
+      ecs-cluster-arn: ${{ steps.gather-reqs.outputs.ECS_CLUSTER_ARN }}
+      ecs-service-arn: ${{ steps.gather-reqs.outputs.ECS_SERVICE_ARN }}
+      cd-role-arn: ${{ steps.gather-reqs.outputs.AWS_CD_ROLE }}
+      region: ${{ steps.gather-reqs.outputs.AWS_REGION }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Set deployment env
+        id: set-environment
+        run: |
+          cat ${{ inputs.infra_folder_path }}/environments/${{ inputs.environment_id }}.env >> "$GITHUB_ENV"
+      
+      - name: Configure AWS Credentials
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v4.0.0
+        with:
+          role-to-assume: ${{ env.AWS_CD_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: false
+      
+      - name: Gather cluster and service requirements
+        id: gather-reqs
+        run: |
+          # shellcheck disable=SC2016
+          INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
+          # shellcheck disable=SC2016
+          if [[ -z $INPUT_ENV_SUFFIX ]]; then
+            ECS_CLUSTER_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.ProductName }}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`ClusterArn`].OutputValue' \
+              --output text)
+            ECS_SERVICE_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.ProductName }}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`ApiServiceArn`].OutputValue' \
+              --output text)
+          else
+          
+            ECS_CLUSTER_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.ProductName }}-${{ github.event.pull_request.number }}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`ClusterArn`].OutputValue' \
+              --output text)
+            ECS_SERVICE_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "${{ env.ProductName }}-${{ github.event.pull_request.number }}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`ApiServiceArn`].OutputValue' \
+              --output text)
+          fi
+          # shellcheck disable=SC2129
+          echo "ECS_CLUSTER_ARN=$ECS_CLUSTER_ARN" >> "$GITHUB_OUTPUT"
+          echo "ECS_SERVICE_ARN=$ECS_SERVICE_ARN" >> "$GITHUB_OUTPUT"
+          echo "AWS_CD_ROLE=${{ env.AWS_CD_ROLE }}" >> "$GITHUB_OUTPUT"
+          echo "AWS_REGION=${{ env.AWS_REGION }}" >> "$GITHUB_OUTPUT"
+          
+  run-command:
+    runs-on: ubuntu-latest
+    needs:
+      - retrieve-cluster-parameters
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4.0.1
+        with:
+          role-to-assume: "${{ needs.retrieve-cluster-parameters.outputs.cd-role-arn }}"
+          aws-region: "${{ needs.retrieve-cluster-parameters.outputs.region }}"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Python Dependencies
+        run: pip install boto3
+
+      - name: Run Task With Command
+        shell: python
+        run: |
+          import shlex
+          import sys
+
+          import boto3
+
+          ecs = boto3.client("ecs")
+
+
+          def find_main_container_name(cluster_arn, service_arn):
+              service = ecs.describe_services(services=[service_arn], cluster=cluster_arn)[
+                  "services"
+              ][0]
+              container_definitions = ecs.describe_task_definition(
+                  taskDefinition=service["taskDefinition"]
+              )["taskDefinition"]["containerDefinitions"]
+              essential_containers = [x for x in container_definitions if x["essential"]]
+              if (num_essential_containers := len(essential_containers)) != 1:
+                  raise Exception(
+                      f"Expected only one essential container, found {num_essential_containers}"
+                  )
+              container_name = essential_containers[0]["name"]
+              return container_name
+
+
+          def run_task(cluster_arn, service_arn, command, container_name):
+              service = ecs.describe_services(services=[service_arn], cluster=cluster_arn)[
+                  "services"
+              ][0]
+              task_definition = service["taskDefinition"]
+              network_configuration = service["networkConfiguration"]
+              overrides = {
+                  "containerOverrides": [
+                      {
+                          "name": container_name,
+                          "command": command,
+                      },
+                  ],
+              }
+              response = ecs.run_task(
+                  cluster=cluster_arn,
+                  taskDefinition=task_definition,
+                  launchType="FARGATE",
+                  networkConfiguration=network_configuration,
+                  overrides=overrides,
+                  count=1,
+              )
+              return response["tasks"][0]["taskArn"]
+
+
+          def wait_task(cluster_arn, task_arn):
+              waiter = ecs.get_waiter("tasks_stopped")
+              waiter.wait(
+                  cluster=cluster_arn,
+                  tasks=[task_arn],
+              )
+
+
+          def get_command_exit_code(cluster_arn, task_arn, container_name):
+              response = ecs.describe_tasks(
+                  cluster=cluster_arn,
+                  tasks=[task_arn],
+              )
+              command_exit_code = [
+                  x["exitCode"]
+                  for x in response["tasks"][0]["containers"]
+                  if x["name"] == container_name
+              ][0]
+              return command_exit_code
+
+
+          def main():
+              cluster_arn = "${{ needs.retrieve-cluster-parameters.outputs.ecs-cluster-arn }}"
+              service_arn = "${{ needs.retrieve-cluster-parameters.outputs.ecs-service-arn }}"
+              command = shlex.split('${{ inputs.command }}')
+
+              container_name = find_main_container_name(cluster_arn, service_arn)
+              task_arn = run_task(cluster_arn, service_arn, command, container_name)
+              print("Task started")
+
+              wait_task(cluster_arn, task_arn)
+              print("Task finished")
+
+              command_exit_code = get_command_exit_code(cluster_arn, task_arn, container_name)
+              if command_exit_code:
+                  print("Command failed")
+                  sys.exit(command_exit_code)
+
+              print("Command ran successfully")
+              sys.exit(0)
+
+
+          main()
+
