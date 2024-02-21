@@ -30,7 +30,7 @@ jobs:
           echo "stackname=$STACKNAME" >> "$GITHUB_OUTPUT"
           echo "cd_role=$CD_ROLE" >> "$GITHUB_OUTPUT"
 
-      - uses: strumwolf/delete-deployment-environment@v2
+      - uses: strumwolf/delete-deployment-environment@v3
         with:
           token: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
           environment: review-${{ github.event.pull_request.number }}

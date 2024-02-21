@@ -23,7 +23,7 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: strumwolf/delete-deployment-environment@v2
+      - uses: strumwolf/delete-deployment-environment@v3
         with:
           token: ${{ secrets.token }}
           environment: review-${{ env.PR_NUMBER }}
