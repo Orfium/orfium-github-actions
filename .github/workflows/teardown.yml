@@ -13,6 +13,10 @@ on:
         required: false
         type: string
         default: infra
+      wait_for_deletion:
+        required: false
+        type: string
+        default: "true"
 
 jobs:
   teardown:
@@ -90,7 +94,10 @@ jobs:
         if: steps.check-stack-exists.outputs.superstack_exists == 1
         id: teardown-stack-and-buckets
         shell: python
+        env:
+          WAIT_FOR_DELETION: ${{ inputs.wait_for_deletion }}
         run: |
+          import os
           import sys
           import boto3
           import botocore.exceptions as boto3exceptions
@@ -137,3 +144,18 @@ jobs:
           except boto3exceptions.ClientError as exc:
             print(str(exc))
             sys.exit(1)
+
+          wait_for_deletion = os.environ['WAIT_FOR_DELETION']
+          if (wait_for_deletion == "true"):
+            waiter = cfn.get_waiter('stack_delete_complete')
+            try:
+              waiter.wait(
+                StackName=STACK,
+                WaiterConfig={
+                  'Delay': 30,
+                  'MaxAttempts': 120
+                }
+              )
+              print(f"Stack's {STACK} deletion was successful")
+            except:
+              print(f"Stack's {STACK} deletion has failed")
