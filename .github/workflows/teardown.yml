@@ -159,3 +159,4 @@ jobs:
               print(f"Stack's {STACK} deletion was successful")
             except:
               print(f"Stack's {STACK} deletion has failed")
+              sys.exit(1)
