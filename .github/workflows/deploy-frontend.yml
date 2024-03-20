@@ -32,6 +32,9 @@ jobs:
           source environments/${{ inputs.target-environment }}.env
 
           SUBDOMAIN=$PRODUCT
+          if [[ -n "$DANGEROUSLY_SET_CUSTOM_SUBDOMAIN" ]]; then
+              SUBDOMAIN="$DANGEROUSLY_SET_CUSTOM_SUBDOMAIN"
+          fi
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
               SUBDOMAIN=${SUBDOMAIN}-pr-${{ github.event.pull_request.number }}
           fi
@@ -72,6 +75,9 @@ jobs:
           source environments/${{ inputs.target-environment }}.env
 
           SUBDOMAIN=$PRODUCT
+          if [[ -n "$DANGEROUSLY_SET_CUSTOM_SUBDOMAIN" ]]; then
+              SUBDOMAIN="$DANGEROUSLY_SET_CUSTOM_SUBDOMAIN"
+          fi
           STACKNAME=${PRODUCT}-${{ inputs.target-environment }}
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
               SUBDOMAIN=${SUBDOMAIN}-pr-${{ github.event.pull_request.number }}
