@@ -41,3 +41,4 @@ jobs:
                 echo "jira_ticket_id=$(echo $jira_ticket_id)" >> $GITHUB_OUTPUT
             fi
         shell: bash
+        
