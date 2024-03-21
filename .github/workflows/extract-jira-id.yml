@@ -1,0 +1,43 @@
+name: 'Extract Jira ticket ID from PR'
+on:
+  workflow_call:
+    outputs:
+      jira_ticket_id:
+        description: 'The extracted Jira Ticket ID'
+        value: ${{ jobs.extract_jira_ticket_id.outputs.jira_ticket_id }}
+
+jobs:
+  extract-jira-ticket-id:
+    runs-on: ubuntu-latest
+    outputs:
+      jira_ticket_id: ${{ steps.extract_jira_ticket_id.outputs.jira_ticket_id }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Extract Jira ticket ID from PR
+        id: extract_jira_ticket_id
+        run: |
+            set +e
+            set +o pipefail
+
+            jira_ticket_id=""
+            
+            # Check PR title
+            if [[ ${{ github.event_name }} == 'pull_request' ]]; then
+                jira_ticket_id=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Z]+-[0-9]+')
+            fi
+
+            # Check branch name
+            if [[ -z $jira_ticket_id ]]; then
+                jira_ticket_id=$(echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" | grep -oE '[A-Z]+-[0-9]+')
+            fi
+
+            if [[ -z $jira_ticket_id ]]; then
+                echo "No Jira Ticket ID found"
+            else
+                echo "Jira Ticket ID: $jira_ticket_id"
+                echo "jira_ticket_id=$(echo $jira_ticket_id)" >> $GITHUB_OUTPUT
+            fi
+        shell: bash
