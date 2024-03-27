@@ -162,3 +162,42 @@ The teardown reusable workflow handles the deletion of the cloudformations tack 
 You will need to feed 2 required parameters to the re-usable workflow:
 * environment_id: The environment_id, as mentioned above, MUST match a pre-existing environment file and a pre-existing <environment_id>_cf_parameters.json, e.g. environments/production.env + environments/production_cf_parameters.json + environment_id: production.
 * environment_suffix: Unlike above, here the environment suffix is mandatory, in order to extrapolate the stack-name from the combination of the ProductName and the Environment Suffix. Because that similar method is used above to create the stack name in the first place, it used again here to reliably predict the name of the stack that we want to be deleted.
+
+## Extract Jira Ticket ID from PR Action
+This GitHub Action extracts a Jira Ticket ID either from the **PR title** or the **branch name**. It's useful for automating workflows that require a Jira Ticket ID.
+
+### Ticket ID Format
+Make sure to prefix the PR title or the branch with the following format: `[A-Z]-[0-9]`  (capital letters, dash, numbers)  
+Examples:  
+`PRJ-123/my-feature-branch`  
+`[PRJ-123] This is the PR title`
+
+_anything before or after the correct format is valid_
+
+### Outputs
+
+`jira_ticket_id`: The extracted Jira Ticket ID.  
+This output can be accessed using `needs.<job_id>.outputs.jira_ticket_id`, where `<job_id>` is the ID of the job that called this action.
+
+### Usage
+
+You can use this action by referencing it in your workflow file with the `uses` keyword.  
+Let's see a couple of examples:
+
+```yaml
+name: Get the Jira ticket from a PR
+
+on:
+    pull_request:
+        types: [opened, reopened, synchronize]
+
+jobs:
+    extract-jira-ticket-id:
+        uses: Orfium/orfium-github-actions/.github/workflows/extract-jira-id.yml@master
+    use-jira-ticket-id:
+        runs-on: ubuntu-latest
+        needs: extract-jira-ticket-id
+        steps:
+            - name: Use the Jira ticket id
+              run: echo "The Jira ticket id is ${{ needs.extract-jira-ticket-id.outputs.jira_ticket_id }}"
+```
