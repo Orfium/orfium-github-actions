@@ -14,7 +14,17 @@ on:
         required: false
         type: string
         default: true
-        description: Whether the swagger definition should be public or pricate
+        description: Whether the swagger definition should be public or private
+      lint:
+        required: false
+        type: boolean
+        default: false
+        description: Whether to lint the swagger definition
+      linter_ruleset:
+        required: false
+        type: string
+        description: The URL of the ruleset to use for linting
+        default: https://cdn.orfium.com/platform/prod/api-standardization/ruleset-latest.yml
     secrets:
       SWAGGERHUB_TOKEN:
         required: true
@@ -89,9 +99,12 @@ jobs:
 
       - name: Create Swaggerhub Definition
         run: make swaggerhub
-
-      - name: Tear down the Stack
-        run: make down-volumes
+      
+      - uses: stoplightio/spectral-action@v0.8.11
+        if: "${{ inputs.lint }}"
+        with:
+          file_glob: 'test.yaml'
+          spectral_ruleset: ${{ inputs.linter_ruleset }}
 
       - name: Post to Swaggerhub
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
