@@ -30,7 +30,7 @@ jobs:
           if [ -f ${{ inputs.app-directory-name }}/environments/common.env ]; then
               source ${{ inputs.app-directory-name }}/environments/common.env
           fi
-          source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
+          source ${{ inputs.app-directory-name }}/environments/review.env
           STACKNAME=${PRODUCT}-pr-${{ github.event.pull_request.number }}
           echo "stackname=$STACKNAME" >> "$GITHUB_OUTPUT"
           echo "cd_role=$CD_ROLE" >> "$GITHUB_OUTPUT"
