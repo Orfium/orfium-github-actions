@@ -31,9 +31,9 @@ jobs:
           set -o allexport
           # Load optional common configuration
           if [ -f {{ inputs.app-directory-name }}/environments/common.env ]; then
-              source {{ inputs.app-directory-name }}/environments/common.env
+              source ${{ inputs.app-directory-name }}/environments/common.env
           fi
-          source {{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
+          source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
 
           SUBDOMAIN=$PRODUCT
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -71,9 +71,9 @@ jobs:
           set -o allexport
           # Load optional common configuration
           if [ -f {{ inputs.app-directory-name }}/environments/common.env ]; then
-              source {{ inputs.app-directory-name }}/environments/common.env
+              source ${{ inputs.app-directory-name }}/environments/common.env
           fi
-          source {{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
+          source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
 
           SUBDOMAIN=$PRODUCT
           STACKNAME=${PRODUCT}-${{ inputs.target-environment }}
@@ -117,9 +117,9 @@ jobs:
           set -o allexport
           # Load optional common configuration
           if [ -f {{ inputs.app-directory-name }}/environments/common.env ]; then
-              source {{ inputs.app-directory-name }}/environments/common.env
+              source ${{ inputs.app-directory-name }}/environments/common.env
           fi
-          source {{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
+          source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
           yarn install
           turbo run build --filter=./{{ inputs.app-directory-name }}
 
