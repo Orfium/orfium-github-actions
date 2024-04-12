@@ -30,7 +30,7 @@ jobs:
         run: |
           set -o allexport
           # Load optional common configuration
-          if [ -f {{ inputs.app-directory-name }}/environments/common.env ]; then
+          if [ -f ${{ inputs.app-directory-name }}/environments/common.env ]; then
               source ${{ inputs.app-directory-name }}/environments/common.env
           fi
           source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
@@ -70,7 +70,7 @@ jobs:
 
           set -o allexport
           # Load optional common configuration
-          if [ -f {{ inputs.app-directory-name }}/environments/common.env ]; then
+          if [ -f ${{ inputs.app-directory-name }}/environments/common.env ]; then
               source ${{ inputs.app-directory-name }}/environments/common.env
           fi
           source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
@@ -116,7 +116,7 @@ jobs:
         run: |
           set -o allexport
           # Load optional common configuration
-          if [ -f {{ inputs.app-directory-name }}/environments/common.env ]; then
+          if [ -f ${{ inputs.app-directory-name }}/environments/common.env ]; then
               source ${{ inputs.app-directory-name }}/environments/common.env
           fi
           source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
