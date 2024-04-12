@@ -1,6 +1,11 @@
 name: Teardown review env
 on:
   workflow_call:
+    inputs:
+      app-directory-name:
+        description: Directory of monorepo app
+        required: true
+        type: string
     secrets:
       REVIEW_TEARDOWN_TOKEN:
         required: true

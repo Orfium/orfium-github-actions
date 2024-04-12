@@ -7,6 +7,10 @@ on:
         description: Deployment Target
         required: true
         type: string
+      app-directory-name:
+        description: Directory of monorepo app
+        required: true
+        type: string
     secrets:
       ORG_PGP_TOKEN:
         description: Org token for npm
