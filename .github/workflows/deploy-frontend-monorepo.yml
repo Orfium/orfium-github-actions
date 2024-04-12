@@ -121,7 +121,7 @@ jobs:
           fi
           source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
           yarn install
-          turbo run build --filter=./${{ inputs.app-directory-name }}
+          npx turbo run build --filter=./${{ inputs.app-directory-name }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4.0.2
