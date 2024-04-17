@@ -198,16 +198,15 @@ jobs:
       - name: Set deployment env
         id: set-environment
         run: |
-          if [ ${{ github.event_name }} == 'pull_request' ]; then
-            echo "This is a review environment"
-            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/review.env >> "$GITHUB_ENV"
-            echo "ENVIRONMENT_ID=review" >> "$GITHUB_OUTPUT"
-            echo "ENVIRONMENT_SUFFIX=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-          else
+          if [ ${{ github.ref }} == 'refs/heads/master' || ${{ github.ref }} == 'refs/heads/master' ]; then
             echo "This is a production environment"
-            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/production.env >> "$GITHUB_ENV"
             echo "ENVIRONMENT_ID=production" >> "$GITHUB_OUTPUT"
-            echo "ENVIRONMENT_SUFFIX=" >> "$GITHUB_OUTPUT"
+          if [ ${{ github.ref }} == 'refs/heads/staging' ]; then
+            echo "This is a staging environment"
+            echo "ENVIRONMENT_ID=staging" >> "$GITHUB_OUTPUT"
+          else 
+            echo "This is a developmemt environment"
+            echo "ENVIRONMENT_ID=development" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set new release env
@@ -221,7 +220,7 @@ jobs:
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ inputs.sentry_project }}
         with:
-          environment: ${{ steps.set-environment.outputs.ENVIRONMENT_SUFFIX }}
+          environment: ${{ steps.set-environment.outputs.ENVIRONMENT_ID }}
           sourcemaps: ${{ inputs.app-directory-name }}/build
           ignore_missing: true
           version: ${{ env.latest_tag }}
