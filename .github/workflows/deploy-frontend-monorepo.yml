@@ -11,6 +11,10 @@ on:
         description: Directory of monorepo app
         required: true
         type: string
+      sentry_project:
+        required: false
+        description: Sentry name of the project
+        type: string
     secrets:
       ORG_PGP_TOKEN:
         description: Org token for npm
@@ -187,3 +191,37 @@ jobs:
           aws s3 sync "$GITHUB_WORKSPACE/${{ inputs.app-directory-name }}/build/" "s3://${S3_BUCKET_NAME}/"
           INVALIDATION_ID=$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*" | jq -r .Invalidation.Id)
           echo "INVALIDATION_ID is $INVALIDATION_ID"
+
+      - name: Generate sourcemaps
+        run: npx turbo run build:sentry --filter=./${{ inputs.app-directory-name }}
+
+      - name: Set deployment env
+        id: set-environment
+        run: |
+          if [ ${{ github.event_name }} == 'pull_request' ]; then
+            echo "This is a review environment"
+            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/review.env >> "$GITHUB_ENV"
+            echo "ENVIRONMENT_ID=review" >> "$GITHUB_OUTPUT"
+            echo "ENVIRONMENT_SUFFIX=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "This is a production environment"
+            cat ${{ needs.set-environment-variables.outputs.infra_folder_path }}environments/production.env >> "$GITHUB_ENV"
+            echo "ENVIRONMENT_ID=production" >> "$GITHUB_OUTPUT"
+            echo "ENVIRONMENT_SUFFIX=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set new release env
+        run: echo "latest_tag=$(git tag | sort --version-sort | tail -n1)" >> $GITHUB_ENV
+
+      - name: Sentry release 📌
+        if: ((github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/staging') && github.event_name == 'push')
+        uses: getsentry/action-release@v1
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ inputs.sentry_project }}
+        with:
+          environment: ${{ steps.set-environment.outputs.ENVIRONMENT_SUFFIX }}
+          sourcemaps: ${{ inputs.app-directory-name }}/build
+          ignore_missing: true
+          version: ${{ env.latest_tag }}
