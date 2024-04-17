@@ -206,7 +206,7 @@ jobs:
       - name: Set deployment env
         id: set-environment
         run: |
-          if [ ${{ github.ref }} == 'refs/heads/master' || ${{ github.ref }} == 'refs/heads/master' ]; then
+          if [ ${{ github.ref }} == 'refs/heads/master' || ${{ github.ref }} == 'refs/heads/main' ]; then
             echo "This is a production environment"
             echo "ENVIRONMENT_ID=production" >> "$GITHUB_OUTPUT"
           elif [ ${{ github.ref }} == 'refs/heads/staging' ]; then
