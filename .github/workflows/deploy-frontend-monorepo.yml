@@ -15,18 +15,16 @@ on:
         required: false
         description: Sentry name of the project
         type: string
-      sentry_auth_token:
-        required: false
-        description: Sentry auth token for deploying to sentry
-        type: string
-      sentry_org:
-        required: false
-        description: Sentry organization for deploying to sentry
-        type: string
     secrets:
       ORG_PGP_TOKEN:
         description: Org token for npm
         required: true
+      sentry_auth_token:
+        required: false
+        description: Sentry auth token for deploying to sentry
+      sentry_org:
+        required: false
+        description: Sentry organization for deploying to sentry
 
 jobs:
   get-environment-name:
@@ -206,7 +204,7 @@ jobs:
       - name: Set deployment env
         id: set-environment
         run: |
-          if [ ${{ github.ref }} == 'refs/heads/master' || ${{ github.ref }} == 'refs/heads/main' ]; then
+          if [ ${{ github.ref }} == 'refs/heads/master' ] || [ ${{ github.ref }} == 'refs/heads/main' ]; then
             echo "This is a production environment"
             echo "ENVIRONMENT_ID=production" >> "$GITHUB_OUTPUT"
           elif [ ${{ github.ref }} == 'refs/heads/staging' ]; then
@@ -224,8 +222,8 @@ jobs:
         if: ((github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/staging') && github.event_name == 'push')
         uses: getsentry/action-release@v1
         env:
-          SENTRY_AUTH_TOKEN: ${{ inputs.sentry_auth_token }}
-          SENTRY_ORG: ${{ inputs.sentry_org }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.sentry_auth_token }}
+          SENTRY_ORG: ${{ secrets.sentry_org }}
           SENTRY_PROJECT: ${{ inputs.sentry_project }}
         with:
           environment: ${{ steps.set-environment.outputs.ENVIRONMENT_ID }}
