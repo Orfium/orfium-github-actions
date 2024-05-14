@@ -1,0 +1,61 @@
+name: Teardown review env
+on:
+  workflow_call:
+    inputs:
+      app-directory-name:
+        description: Directory of monorepo app
+        required: true
+        type: string
+    secrets:
+      REVIEW_TEARDOWN_TOKEN:
+        required: true
+        description: GitHub token inherited from invoker
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  delete-review-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup configuration
+        id: config
+        run: |
+          set -o allexport
+          # Load optional common configuration
+          if [ -f ${{ inputs.app-directory-name }}/environments/common.env ]; then
+              source ${{ inputs.app-directory-name }}/environments/common.env
+          fi
+          source ${{ inputs.app-directory-name }}/environments/review.env
+          STACKNAME=${PRODUCT}-pr-${{ github.event.pull_request.number }}
+          echo "stackname=$STACKNAME" >> "$GITHUB_OUTPUT"
+          echo "cd_role=$CD_ROLE" >> "$GITHUB_OUTPUT"
+
+      - uses: strumwolf/delete-deployment-environment@v3
+        with:
+          token: ${{ secrets.REVIEW_TEARDOWN_TOKEN }}
+          environment: review-${{ github.event.pull_request.number }}
+          onlyRemoveDeployments: true
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ steps.config.outputs.cd_role }}
+          aws-region: "us-east-1"
+
+      - name: Delete Cloudformation stack, S3 files and S3 bucket
+        run: |
+          STACKNAME=${{ steps.config.outputs.stackname }}
+          if aws cloudformation describe-stacks --stack-name $STACKNAME; then
+            # We want to use literal backticks in "--query", not trying to expand to something else
+            # shellcheck disable=SC2016
+            S3_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name "$STACKNAME" --query 'Stacks[0].Outputs[?OutputKey==`S3BucketName`].OutputValue' --output text)
+            aws cloudformation delete-stack --stack-name "$STACKNAME"
+            aws s3 rb "s3://$S3_BUCKET_NAME" --force
+          else
+            echo "Stack $STACKNAME  does not exist. Skipping deletion"
+          fi
