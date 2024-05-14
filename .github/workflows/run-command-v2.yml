@@ -66,11 +66,11 @@ jobs:
           else
           
             ECS_CLUSTER_ARN=$(aws cloudformation describe-stacks \
-              --stack-name "${{ env.ProductName }}-${{ github.event.pull_request.number }}" \
+              --stack-name "${{ env.ProductName }}-${INPUT_ENV_SUFFIX}" \
               --query 'Stacks[0].Outputs[?OutputKey==`ClusterArn`].OutputValue' \
               --output text)
             ECS_SERVICE_ARN=$(aws cloudformation describe-stacks \
-              --stack-name "${{ env.ProductName }}-${{ github.event.pull_request.number }}" \
+              --stack-name "${{ env.ProductName }}-${INPUT_ENV_SUFFIX}" \
               --query 'Stacks[0].Outputs[?OutputKey==`ApiServiceArn`].OutputValue' \
               --output text)
           fi
