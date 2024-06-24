@@ -75,7 +75,7 @@ jobs:
 
       - name: Build local image from Cache
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           push: false
           load: true
@@ -88,7 +88,7 @@ jobs:
       
       - name: Build local image
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           push: false
           load: true
