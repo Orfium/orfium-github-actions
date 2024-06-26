@@ -18,7 +18,7 @@ on:
         required: false
         type: boolean
         default: false
-      PUBLISH_TESTRAIL_RESULTS:
+      PUBLISH_TESTMO_RESULTS:
         required: false
         type: boolean
         default: false
@@ -42,8 +42,8 @@ on:
         required: false
         type: string
     secrets:
-      TESTRAIL_CI_API_KEY:
-        description: Password for Orfium's TestRail account
+      TESTMO_TOKEN:
+        description: Token for Orfium's Testmo account
         required: false
       GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
         required: false
@@ -51,7 +51,6 @@ on:
 env:
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
-  TESTRAIL_USERNAME: "qa@orfium.com"
 
 jobs:
   end-to-end-api-tests:
@@ -144,11 +143,11 @@ jobs:
         if: ${{ inputs.RUN_UI_TESTS }}
         run: make e2e-ui-tests
 
-      - name: Publish test results to TestRail
-        if: always() && inputs.PUBLISH_TESTRAIL_RESULTS
+      - name: Publish test results to Testmo
+        if: always() && inputs.PUBLISH_TESTMO_RESULTS
         env:
-          TESTRAIL_CI_API_KEY: ${{ secrets.TESTRAIL_CI_API_KEY }}
-        run: make testrail-results
+          TESTMO_TOKEN: ${{secrets.TESTMO_QA_CI_API_TOKEN}}
+        run: make testmo-results
 
       - name: visualise-e2e-test-reports
         # We leverage the fact that GitHub Actions sets the outcome to null for steps that have not run
