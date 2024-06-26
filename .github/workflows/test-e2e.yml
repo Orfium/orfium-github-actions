@@ -42,7 +42,7 @@ on:
         required: false
         type: string
     secrets:
-      TESTMO_TOKEN:
+      TESTMO_QA_CI_API_TOKEN:
         description: Token for Orfium's Testmo account
         required: false
       GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
