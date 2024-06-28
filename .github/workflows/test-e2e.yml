@@ -18,10 +18,6 @@ on:
         required: false
         type: boolean
         default: false
-      PUBLISH_TESTMO_RESULTS:
-        required: false
-        type: boolean
-        default: false
       codeartifact_encrypted_token_dev:
         required: false
         type: string
@@ -42,9 +38,6 @@ on:
         required: false
         type: string
     secrets:
-      TESTMO_QA_CI_API_TOKEN:
-        description: Token for Orfium's Testmo account
-        required: false
       GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
         required: false
 
@@ -142,12 +135,6 @@ jobs:
         id: e2e-ui-tests
         if: ${{ inputs.RUN_UI_TESTS }}
         run: make e2e-ui-tests
-
-      - name: Publish test results to Testmo
-        if: always() && inputs.PUBLISH_TESTMO_RESULTS
-        env:
-          TESTMO_TOKEN: ${{secrets.TESTMO_QA_CI_API_TOKEN}}
-        run: make testmo-results
 
       - name: visualise-e2e-test-reports
         # We leverage the fact that GitHub Actions sets the outcome to null for steps that have not run
