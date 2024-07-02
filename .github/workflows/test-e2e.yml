@@ -151,10 +151,9 @@ jobs:
         id: e2e-test-results-upload
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-results-${{ github.run_id }}
+          name: e2e-test-results
           path: |
             ${{ github.workspace }}/${{ inputs.API_TEST_RESULTS_PATH }}
-            ${{ github.workspace }}/${{ inputs.UI_TEST_RESULTS_PATH }}
           if-no-files-found: warn # default
           retention-days: 90 # default
 
