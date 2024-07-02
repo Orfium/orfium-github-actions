@@ -40,6 +40,13 @@ on:
     secrets:
       GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
         required: false
+    outputs:
+      test-results-artifact-id:
+        description: The ID of the uploaded test results artifact
+        value: ${{ jobs.end-to-end-tests.outputs.test-results-artifact-id }}
+      test-results-artifact-url:
+        description: The URL of the uploaded test results artifact
+        value: ${{ jobs.end-to-end-tests.outputs.test-results-artifact-url }}
 
 env:
   DOCKER_BUILDKIT: 1
@@ -52,6 +59,10 @@ jobs:
       id-token: write
       contents: read
       checks: write
+    outputs:
+      test-results-artifact-id: ${{ steps.e2e-test-results-upload.outputs.artifact-id }}
+      test-results-artifact-url: ${{ steps.e2e-test-results-upload.outputs.artifact-url }}
+
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v4
@@ -135,6 +146,17 @@ jobs:
         id: e2e-ui-tests
         if: ${{ inputs.RUN_UI_TESTS }}
         run: make e2e-ui-tests
+
+      - name: Upload test results as artifacts
+        id: e2e-test-results-upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-${{ github.run_id }}
+          path: |
+            ${{ github.workspace }}/${{ inputs.API_TEST_RESULTS_PATH }}
+            ${{ github.workspace }}/${{ inputs.UI_TEST_RESULTS_PATH }}
+          if-no-files-found: warn # default
+          retention-days: 90 # default
 
       - name: visualise-e2e-test-reports
         # We leverage the fact that GitHub Actions sets the outcome to null for steps that have not run
