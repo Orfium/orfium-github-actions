@@ -155,8 +155,18 @@ jobs:
         if: ${{ inputs.RUN_UI_TESTS }}
         run: make e2e-ui-tests
 
+      - name: Check if TESTMO_TOKEN is set
+        id: check-testmo-token
+        run: |
+          if [ -z "${{ secrets.TESTMO_TOKEN }}" ]; then
+            echo "TESTMO_TOKEN is not set. Skipping the publishing step."
+            echo "testmo-token-set=false" >> "$GITHUB_ENV"
+          else
+            echo "testmo-token-set=true" >> "$GITHUB_ENV"
+          fi
+
       - name: Publish test results to Testmo
-        if: always() && inputs.TESTMO_RESULTS_PATH && inputs.TESTMO_PROJECT_ID && inputs.TESTMO_SOURCE_NAME && inputs.TESTMO_RUN_NAME
+        if: always() && inputs.TESTMO_RESULTS_PATH && inputs.TESTMO_PROJECT_ID && inputs.TESTMO_SOURCE_NAME && inputs.TESTMO_RUN_NAME && env.testmo-token-set
         uses: Orfium/github-actions/.github/actions/publish_testmo_results@master
         with:
           project_id: ${{ inputs.TESTMO_PROJECT_ID }}
