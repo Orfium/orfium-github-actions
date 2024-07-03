@@ -146,14 +146,28 @@ jobs:
         id: e2e-ui-tests
         if: ${{ inputs.RUN_UI_TESTS }}
         run: make e2e-ui-tests
-
-      - name: Upload test results as artifacts
-        id: e2e-test-results-upload
+      
+      # Using the same name for both API and UI test results will result in the second upload failing.
+      # Here, it's ok because we'll never run both tests at the same time.
+      - name: Upload API test results as artifacts
+        id: e2e-api-test-results-upload
+        if: ${{ inputs.RUN_API_TESTS }}
         uses: actions/upload-artifact@v4
         with:
           name: e2e-test-results
           path: |
             ${{ github.workspace }}/${{ inputs.API_TEST_RESULTS_PATH }}
+          if-no-files-found: warn # default
+          retention-days: 90 # default
+
+      - name: Upload UI test results as artifacts
+        id: e2e-ui-test-results-upload
+        if: ${{ inputs.RUN_UI_TESTS }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            ${{ github.workspace }}/${{ inputs.UI_TEST_RESULTS_PATH }}
           if-no-files-found: warn # default
           retention-days: 90 # default
 
