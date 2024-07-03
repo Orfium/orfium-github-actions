@@ -18,10 +18,22 @@ on:
         required: false
         type: boolean
         default: false
-      PUBLISH_TESTRAIL_RESULTS:
+      TESTMO_PROJECT_ID:
+        type: number
+        description: 'Testmo Project ID'
         required: false
-        type: boolean
-        default: false
+      TESTMO_SOURCE_NAME:
+        type: string
+        description: 'Source of the tests'
+        required: false
+      TESTMO_RUN_NAME:
+        type: string
+        description: 'Name of the test run. You can provide the marker, environment and type of test run.'
+        required: false
+      TESTMO_RESULTS_PATH:
+        type: string
+        description: 'Path to the results file'
+        required: false
       codeartifact_encrypted_token_dev:
         required: false
         type: string
@@ -42,8 +54,8 @@ on:
         required: false
         type: string
     secrets:
-      TESTRAIL_CI_API_KEY:
-        description: Password for Orfium's TestRail account
+      TESTMO_TOKEN:
+        description: API token for Orfium's Testmo account
         required: false
       GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
         required: false
@@ -51,7 +63,6 @@ on:
 env:
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
-  TESTRAIL_USERNAME: "qa@orfium.com"
 
 jobs:
   end-to-end-api-tests:
@@ -144,11 +155,25 @@ jobs:
         if: ${{ inputs.RUN_UI_TESTS }}
         run: make e2e-ui-tests
 
-      - name: Publish test results to TestRail
-        if: always() && inputs.PUBLISH_TESTRAIL_RESULTS
-        env:
-          TESTRAIL_CI_API_KEY: ${{ secrets.TESTRAIL_CI_API_KEY }}
-        run: make testrail-results
+      - name: Check if TESTMO_TOKEN is set
+        id: check-testmo-token
+        run: |
+          if [ -z "${{ secrets.TESTMO_TOKEN }}" ]; then
+            echo "TESTMO_TOKEN is not set. Skipping the publishing step."
+            echo "testmo-token-set=false" >> "$GITHUB_ENV"
+          else
+            echo "testmo-token-set=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Publish test results to Testmo
+        if: always() && inputs.TESTMO_RESULTS_PATH && inputs.TESTMO_PROJECT_ID && inputs.TESTMO_SOURCE_NAME && inputs.TESTMO_RUN_NAME && env.testmo-token-set == 'true'
+        uses: Orfium/github-actions/.github/actions/publish_testmo_results@master
+        with:
+          project_id: ${{ inputs.TESTMO_PROJECT_ID }}
+          source: ${{ inputs.TESTMO_SOURCE_NAME }}
+          name: ${{ inputs.TESTMO_RUN_NAME }}
+          results: ${{ inputs.TESTMO_RESULTS_PATH }}
+          testmo_token: ${{ secrets.TESTMO_TOKEN }}
 
       - name: visualise-e2e-test-reports
         # We leverage the fact that GitHub Actions sets the outcome to null for steps that have not run
