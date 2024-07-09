@@ -25,6 +25,11 @@ on:
         type: string
         description: The URL of the ruleset to use for linting
         default: https://cdn.orfium.com/platform/prod/api-standardization/ruleset-latest.yml
+      docker_target:
+        required: false
+        type: string
+        description: This is the target of the build.
+        default: local
     secrets:
       SWAGGERHUB_TOKEN:
         required: true
@@ -78,7 +83,7 @@ jobs:
         with:
           push: false
           load: true
-          target: local
+          target: ${{ inputs.docker_target }}
           tags: ${{ github.event.repository.name }}
           cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
           secrets: |
@@ -91,7 +96,7 @@ jobs:
         with:
           push: false
           load: true
-          target: local
+          target: ${{ inputs.docker_target }}
           tags: ${{ github.event.repository.name }}
           secrets: |
             CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}

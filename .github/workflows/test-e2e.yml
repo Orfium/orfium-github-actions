@@ -53,6 +53,11 @@ on:
       AWS_CD_ROLE:
         required: false
         type: string
+      docker_target:
+        required: false
+        type: string
+        description: This is the target of the build.
+        default: local
     secrets:
       TESTMO_TOKEN:
         description: API token for Orfium's Testmo account
@@ -111,7 +116,7 @@ jobs:
         with:
           push: false
           load: true
-          target: local
+          target: ${{ inputs.docker_target }}
           tags: ${{ github.event.repository.name }}
           cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
           secrets: |
@@ -124,7 +129,7 @@ jobs:
         with:
           push: false
           load: true
-          target: local
+          target: ${{ inputs.docker_target }}
           tags: ${{ github.event.repository.name }}
           secrets: |
             CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
