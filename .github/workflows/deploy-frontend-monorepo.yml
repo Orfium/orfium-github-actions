@@ -226,7 +226,7 @@ jobs:
           fi
 
       - name: Set new release env
-        run: echo "latest_tag=$(git tag | sort --version-sort | tail -n1)" >> $GITHUB_ENV
+        run: echo "latest_tag=$(git tag | sort --version-sort | tail -n1)" >> "$GITHUB_ENV"
 
       - name: Sentry release 📌
         if: ((github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/staging') && github.event_name == 'push')
