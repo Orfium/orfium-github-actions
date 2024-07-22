@@ -53,12 +53,12 @@ jobs:
         id: fernet-key
         shell: bash
         run: |
-          STACK_NAME="${{ inputs.stack_name }}" 
+          STACK_NAME="${{ inputs.stack_name }}"
           # shellcheck disable=SC2016
-          if aws cloudformation describe-stacks --stack_name $STACK_NAME; then
+          if aws cloudformation describe-stacks --stack-name $STACK_NAME; then
             echo "Stack exists, retrieving Fernet key from Airflow secret"
             SECRET=$(aws cloudformation describe-stacks \
-              --stack_name $STACK_NAME \
+              --stack-name $STACK_NAME \
               --query 'Stacks[0].Outputs[?OutputKey==`AirflowSecretConfiguration`].OutputValue' \
               --output text)
             FERNET_KEY=$(aws secretsmanager get-secret-value \
