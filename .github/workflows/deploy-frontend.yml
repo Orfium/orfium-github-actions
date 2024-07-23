@@ -54,9 +54,19 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      deployments: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Create GitHub deployment
+        uses: chrnorm/deployment-action@v2
+        id: deployment
+        with:
+          token: '${{ github.token }}'
+          log-url: ${{ needs.get-environment-name.outputs.url }}
+          environment-url: ${{ needs.get-environment-name.outputs.url }}
+          environment: ${{ needs.get-environment-name.outputs.env-name }}
 
       - name: Setup configuration
         id: config
@@ -183,3 +193,23 @@ jobs:
           aws s3 sync "$GITHUB_WORKSPACE/build/" "s3://${S3_BUCKET_NAME}/"
           INVALIDATION_ID=$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*" | jq -r .Invalidation.Id)
           echo "INVALIDATION_ID is $INVALIDATION_ID"
+
+      - name: Update deployment status (success)
+        if: success()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: '${{ github.token }}'
+          environment-url: ${{ steps.deployment.outputs.environment_url }}
+          log-url: ${{ steps.deployment.outputs.environment_url }}
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+          state: 'success'
+
+      - name: Update deployment status (failure)
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: '${{ github.token }}'
+          environment-url: ${{ steps.deployment.outputs.environment_url }}
+          log-url: ${{ steps.deployment.outputs.environment_url }}
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+          state: 'failure'
