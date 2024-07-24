@@ -212,7 +212,7 @@ jobs:
       - name: Set deployment env
         id: set-environment
         run: |
-          if [ ${{ github.event_name }} == 'pull_request' ]; then
+          if [ "${{ inputs.target-environment }}" == "review" ]; then
             echo "This is a developmemt environment"
             echo "ENVIRONMENT_ID=development" >> "$GITHUB_OUTPUT"
           elif [ ${{ github.ref }} == 'refs/heads/master' ] || [ ${{ github.ref }} == 'refs/heads/main' ]; then
