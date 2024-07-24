@@ -46,12 +46,10 @@ jobs:
           source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
 
           SUBDOMAIN=$PRODUCT
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-              SUBDOMAIN=${SUBDOMAIN}-pr-${{ github.event.pull_request.number }}
-          fi
           ENV=${{ inputs.target-environment }}
-          if [[ ${{ github.event_name }} == "pull_request" ]]; then
-            ENV=review-${{ github.event.pull_request.number }}
+          if [[ "${{ inputs.target-environment }}" == "review" ]]; then
+              SUBDOMAIN=${SUBDOMAIN}-pr-${{ github.event.pull_request.number }}
+              ENV=review-${{ github.event.pull_request.number }}
           fi
           # shellcheck disable=SC2129
           echo "env-name=$ENV" >> "$GITHUB_OUTPUT"
