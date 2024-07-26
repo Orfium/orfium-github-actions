@@ -48,7 +48,7 @@ jobs:
           role-to-assume: ${{ env.AWS_CD_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: false
-
+      
       - name: Set Fernet Key
         id: fernet-key
         shell: bash
@@ -56,17 +56,27 @@ jobs:
           STACK_NAME="${{ inputs.stack_name }}"
           # shellcheck disable=SC2016
           if aws cloudformation describe-stacks --stack-name $STACK_NAME; then
-            echo "Stack exists, retrieving Fernet key from Airflow secret"
+            echo "Stack exists, checking for Airflow secret configuration"
             SECRET=$(aws cloudformation describe-stacks \
               --stack-name $STACK_NAME \
               --query 'Stacks[0].Outputs[?OutputKey==`AirflowSecretConfiguration`].OutputValue' \
               --output text)
-            FERNET_KEY=$(aws secretsmanager get-secret-value \
-              --secret-id "$SECRET" \
-              --query SecretString \
-              --region us-east-1 \
-              --output text | jq -r '."AIRFLOW__CORE__FERNET_KEY"')
-            echo "FERNET_KEY=$FERNET_KEY" >> "$GITHUB_OUTPUT"
+          
+            if [ -n "$SECRET" ]; then
+              echo "Airflow secret configuration exists"
+              FERNET_KEY=$(aws secretsmanager get-secret-value \
+                  --secret-id "$SECRET" \
+                  --query SecretString \
+                  --region us-east-1 \
+                  --output text | jq -r '."AIRFLOW__CORE__FERNET_KEY"')
+                echo "FERNET_KEY=$FERNET_KEY" >> "$GITHUB_OUTPUT"
+            else
+              echo "Airflow secret configuration does not exist, creating a new Fernet Key"
+              pip install cryptography
+              # shellcheck disable=SC2006
+              FERNET_KEY=`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+              echo "FERNET_KEY=$FERNET_KEY" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "This is a new Airflow deployment, creating a new Fernet Key"
             pip install cryptography
@@ -74,7 +84,7 @@ jobs:
             FERNET_KEY=`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
             echo "FERNET_KEY=$FERNET_KEY" >> "$GITHUB_OUTPUT"
           fi
-
+      
       - name: Set App Config Secret ARN
         id: app-secret
         if: "${{ inputs.secret_name != '' }}"
