@@ -142,10 +142,10 @@ jobs:
         run: |
           set -o allexport
           # Load optional common configuration
-          source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
           if [ -f ${{ inputs.app-directory-name }}/environments/common.env ]; then
               source ${{ inputs.app-directory-name }}/environments/common.env
           fi
+          source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
           pnpm install
           pnpm build --filter=./${{ inputs.app-directory-name }}
 
