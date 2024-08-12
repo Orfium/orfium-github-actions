@@ -170,7 +170,7 @@ jobs:
           fi
 
           create_or_update_stack=1
-          if [[ -n "${ustack}" && "$parameter_csp" == "${{ steps.config.outputs.csp_header }}" && ("$stack_status" == "CREATE_COMPLETE" || "$stack_status" == "UPDATE_COMPLETE") ]]; then
+          if [[ -n "${stack}" && "$parameter_csp" == "${{ steps.config.outputs.csp_header }}" && ("$stack_status" == "CREATE_COMPLETE" || "$stack_status" == "UPDATE_COMPLETE") ]]; then
             create_or_update_stack=0
           fi
           echo "create_or_update_stack=$create_or_update_stack" >> "$GITHUB_OUTPUT";
