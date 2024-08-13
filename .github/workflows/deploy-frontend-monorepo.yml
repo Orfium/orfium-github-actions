@@ -156,7 +156,6 @@ jobs:
           # Export variables from common.env and target environment
           echo "Exporting variables from common.env..."
           while IFS= read -r line; do
-        # Skip empty lines and comments
           [[ "$line" =~ ^\s*# || -z "$line" ]] && continue
           # Export variables
           export "$line"
