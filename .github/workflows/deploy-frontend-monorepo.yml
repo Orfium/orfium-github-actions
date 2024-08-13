@@ -153,11 +153,22 @@ jobs:
           source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
           echo "${{ inputs.target-environment }}.env sourced successfully."
 
-          # Export all variables to ensure they are available to subsequent steps
+          # Export variables from common.env and target environment
           echo "Exporting variables from common.env..."
-          export $(grep -v '^#' ${{ inputs.app-directory-name }}/environments/common.env | xargs) || echo "No variables to export from common.env"
+          while IFS= read -r line; do
+        # Skip empty lines and comments
+          [[ "$line" =~ ^\s*# || -z "$line" ]] && continue
+          # Export variables
+          export "$line"
+          done < ${{ inputs.app-directory-name }}/environments/common.env
+
           echo "Exporting variables from ${{ inputs.target-environment }}.env..."
-          export $(grep -v '^#' ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env | xargs) || echo "No variables to export from ${{ inputs.target-environment }}.env"
+          while IFS= read -r line; do
+          # Skip empty lines and comments
+          [[ "$line" =~ ^\s*# || -z "$line" ]] && continue
+          # Export variables
+          export "$line"
+          done < ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
 
           # Debug: Print environment variables to verify they are loaded
           echo "Environment variables after sourcing:"
