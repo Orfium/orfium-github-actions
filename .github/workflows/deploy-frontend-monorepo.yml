@@ -143,10 +143,31 @@ jobs:
           set -o allexport
           # Load optional common configuration
           if [ -f ${{ inputs.app-directory-name }}/environments/common.env ]; then
+              echo "common.env found. Sourcing..."
               source ${{ inputs.app-directory-name }}/environments/common.env
+              echo "common.env sourced successfully."
+          else
+              echo "common.env not found."
           fi
+          echo "Sourcing ${{ inputs.target-environment }}.env..."
           source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
+          echo "${{ inputs.target-environment }}.env sourced successfully."
+
+          # Export all variables to ensure they are available to subsequent steps
+          echo "Exporting variables from common.env..."
+          export $(grep -v '^#' ${{ inputs.app-directory-name }}/environments/common.env | xargs) || echo "No variables to export from common.env"
+          echo "Exporting variables from ${{ inputs.target-environment }}.env..."
+          export $(grep -v '^#' ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env | xargs) || echo "No variables to export from ${{ inputs.target-environment }}.env"
+
+          # Debug: Print environment variables to verify they are loaded
+          echo "Environment variables after sourcing:"
+          printenv | grep 'REACT_APP_' || echo "No REACT_APP_ variables found"
+
           pnpm install
+
+          # Debug: Check if the environment is correctly set before the build
+          echo "Starting build process with the following environment variables:"
+          node -e "console.log(process.env);"
           pnpm build --filter=./${{ inputs.app-directory-name }}
 
       - name: Configure AWS credentials
