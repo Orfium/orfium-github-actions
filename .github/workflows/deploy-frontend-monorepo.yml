@@ -22,7 +22,7 @@ on:
         type: string
     secrets:
       ORG_PGP_TOKEN:
-        description: Org token for npm
+        description: Org token for pnpm
         required: true
       sentry_auth_token:
         required: false
@@ -123,17 +123,20 @@ jobs:
           echo "product=$PRODUCT" >> "$GITHUB_OUTPUT"
           echo "stackname=$STACKNAME" >> "$GITHUB_OUTPUT"
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: ${{ steps.config.outputs.version }}
+          cache: 'pnpm'
 
-      - name: Sets npm and yarn config
+      - name: Sets pnpm config
         run: |
-          npm config set //npm.pkg.github.com/:_authToken ${{ secrets.ORG_PGP_TOKEN }}
-          npm config set @orfium:registry https://npm.pkg.github.com
-          npm config set always-auth true || echo "This fails for versions > 18.13"
-          yarn config set @orfium:registry https://npm.pkg.github.com
+          pnpm config set //npm.pkg.github.com/:_authToken ${{ secrets.ORG_PGP_TOKEN }}
+          pnpm config set @orfium:registry https://npm.pkg.github.com
+          pnpm config set always-auth true || echo "This fails for versions > 18.13"
 
       - name: Setup env, install dependencies, and build app
         run: |
@@ -143,8 +146,8 @@ jobs:
               source ${{ inputs.app-directory-name }}/environments/common.env
           fi
           source ${{ inputs.app-directory-name }}/environments/${{ inputs.target-environment }}.env
-          yarn install
-          yarn build --filter=./${{ inputs.app-directory-name }}
+          pnpm install
+          pnpm build --filter=./${{ inputs.app-directory-name }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4.0.2
@@ -212,7 +215,7 @@ jobs:
           echo "INVALIDATION_ID is $INVALIDATION_ID"
 
       - name: Generate sourcemaps
-        run: yarn build:sentry --filter=./${{ inputs.app-directory-name }}
+        run: pnpm build:sentry --filter=./${{ inputs.app-directory-name }}
 
       - name: Set deployment env
         id: set-environment
