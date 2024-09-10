@@ -152,6 +152,7 @@ jobs:
           echo "SENTRY_ORG=${{ secrets.sentry_org }}" >> "$GITHUB_ENV"
           echo "SENTRY_AUTH_TOKEN=${{ secrets.sentry_auth_token }}" >> "$GITHUB_ENV"
           echo "SENTRY_PROJECT=${{ inputs.sentry_project }}" >> "$GITHUB_ENV"
+          echo "SENTRY_ENVIRONMENT=${{ inputs.target-environment }}" >> "$GITHUB_ENV"
           
           # get all versions of the deployment
           NAME=$(jq -r '.name' package.json)
