@@ -210,12 +210,9 @@ jobs:
           # We want to use literal backticks in "--query", not trying to expand to something else
           # shellcheck disable=SC2016
           DISTRIBUTION_ID=$(aws cloudformation describe-stacks --stack-name "$STACKNAME" --query 'Stacks[0].Outputs[?OutputKey==`FeCloudFrontDistributionId`].OutputValue' --output text)
-          aws s3 sync "$GITHUB_WORKSPACE/${{ inputs.app-directory-name }}/build/" "s3://${S3_BUCKET_NAME}/"
+          aws s3 sync "$GITHUB_WORKSPACE/${{ inputs.app-directory-name }}/build/" "s3://${S3_BUCKET_NAME}/" --exclude "*.js.map"
           INVALIDATION_ID=$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*" | jq -r .Invalidation.Id)
           echo "INVALIDATION_ID is $INVALIDATION_ID"
-
-      - name: Generate sourcemaps
-        run: pnpm build:sentry --filter=./${{ inputs.app-directory-name }}
 
       - name: Set deployment env
         id: set-environment
@@ -232,7 +229,16 @@ jobs:
           fi
 
       - name: Set new release env
-        run: echo "latest_tag=$(git tag | sort --version-sort | tail -n1)" >> "$GITHUB_ENV"
+        run: | 
+          # get all versions of the deployment
+          NAME=$(jq -r '.name' package.json)
+          VERSION=$(jq -r '.version' package.json)
+          echo "PACKAGE_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "PACKAGE_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+          # set sentry release based on the versions
+          SENTRY_RELEASE="${PACKAGE_NAME}-${PACKAGE_VERSION}"
+          echo "SENTRY_RELEASE=$SENTRY_RELEASE" >> "$GITHUB_ENV"
 
       - name: Sentry release 📌
         if: ((github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/staging') && github.event_name == 'push')
@@ -245,7 +251,7 @@ jobs:
           environment: ${{ steps.set-environment.outputs.ENVIRONMENT_ID }}
           sourcemaps: ${{ inputs.app-directory-name }}/build
           ignore_missing: true
-          version: ${{ env.latest_tag }}
+          version: ${{ env.SENTRY_RELEASE }}
 
       - name: Update deployment status (success)
         if: success()
