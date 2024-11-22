@@ -139,6 +139,8 @@ jobs:
           pnpm config set always-auth true || echo "This fails for versions > 18.13"
 
       - name: Setup env, install dependencies, and build app
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
           set -o allexport
           # Load optional common configuration
