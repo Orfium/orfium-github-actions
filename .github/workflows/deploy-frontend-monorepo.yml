@@ -233,8 +233,8 @@ jobs:
       - name: Set new release env
         run: | 
           # get all versions of the deployment
-          NAME=$(jq -r '.name' package.json)
-          VERSION=$(jq -r '.version' package.json)
+          NAME=$(jq -r '.name' ${{ inputs.app-directory-name }}/package.json)
+          VERSION=$(jq -r '.version' ${{ inputs.app-directory-name }}/package.json)
           echo "PACKAGE_NAME=$NAME" >> "$GITHUB_ENV"
           echo "PACKAGE_VERSION=$VERSION" >> "$GITHUB_ENV"
 
