@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: vrslev/pre-commit-autoupdate@v1.0.0
-      - uses: peter-evans/create-pull-request@v6
+      - uses: peter-evans/create-pull-request@v7
         with:
           branch: build-pre-commit-autoupdate
           title: "build(deps): Update pre-commit hooks"
