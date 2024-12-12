@@ -10,6 +10,19 @@ on:
       codeartifact_encrypted_token_prod:
         required: false
         type: string
+      ECR_LOGIN_FLAG:
+        required: false
+        type: boolean
+        default: false
+      ECR_REGISTRY:
+        required: false
+        type: string
+      ECR_REGION:
+        required: false
+        type: string
+      AWS_CD_ROLE:
+        required: false
+        type: string
       is_private:
         required: false
         type: string
@@ -46,14 +59,14 @@ jobs:
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v4
-      
+
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v3
         with:
           driver-opts: |
             image=moby/buildkit:master
-      
+
       - name: Set up Local Cache for Docker layers
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
         uses: actions/cache@v4
@@ -62,7 +75,7 @@ jobs:
           key: ${{ runner.os }}-buildx-local-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-local-
-      
+
       - name: Decrypt Codeartifact dev token
         if: "${{ inputs.codeartifact_encrypted_token_dev != '' }}"
         run: |
@@ -77,6 +90,21 @@ jobs:
           echo "::add-mask::$token"
           echo "CODEARTIFACT_TOKEN_PROD=$token" >> "$GITHUB_ENV"
 
+      - name: Configure AWS credentials
+        id: test-aws-configure
+        if: ${{ inputs.ECR_LOGIN_FLAG }}
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ inputs.AWS_CD_ROLE }}
+          aws-region: ${{ inputs.ECR_REGION }}
+
+      - name: Login to ECR
+        id: test-ecr-login
+        if: ${{ inputs.ECR_LOGIN_FLAG }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.ECR_REGISTRY }}
+
       - name: Build local image from Cache
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
         uses: docker/build-push-action@v5
@@ -89,7 +117,7 @@ jobs:
           secrets: |
             CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
             CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
-      
+
       - name: Build local image
         if: "${{ inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
         uses: docker/build-push-action@v5
@@ -104,7 +132,7 @@ jobs:
 
       - name: Create Swaggerhub Definition
         run: make swaggerhub
-      
+
       - uses: stoplightio/spectral-action@v0.8.11
         if: "${{ inputs.lint }}"
         with:
