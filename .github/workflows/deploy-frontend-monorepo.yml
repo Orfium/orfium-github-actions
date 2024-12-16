@@ -229,17 +229,15 @@ jobs:
             echo "This is a staging environment"
             echo "ENVIRONMENT_ID=staging" >> "$GITHUB_OUTPUT"
           fi
+      
+      - name: Set Sentry release version
+        run: |
+          # Change directory to the specified app directory
+          cd ${{ inputs.app-directory-name }}
 
-      - name: Set new release env
-        run: | 
-          # get all versions of the deployment
-          NAME=$(jq -r '.name' ${{ inputs.app-directory-name }}/package.json)
-          VERSION=$(jq -r '.version' ${{ inputs.app-directory-name }}/package.json)
-          echo "PACKAGE_NAME=$NAME" >> "$GITHUB_ENV"
-          echo "PACKAGE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          # Extract the version from the `release-it`. This will export either current or future release in order not to coupled this with release workflow
+          SENTRY_RELEASE=$(pnpm release --ci --dry-run | grep -oE "([0-9]+\.[0-9]+\.[0-9]+|[0-9]+\.[0-9]+\.[0-9]+)$" | tail -n1)
 
-          # set sentry release based on the versions
-          SENTRY_RELEASE="${PACKAGE_NAME}-${PACKAGE_VERSION}"
           echo "SENTRY_RELEASE=$SENTRY_RELEASE" >> "$GITHUB_ENV"
 
       - name: Sentry release 📌
