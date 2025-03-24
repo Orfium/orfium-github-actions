@@ -1,0 +1,59 @@
+name: 'Get Codeartifact info'
+description: 'Get Codeartifact info'
+inputs:
+  is-production:
+    description: Whether to retrieve tokens from dev or production repository
+    default: 'false'
+    required: false
+  token-duration:
+    description: Option to set token's duration until expiration
+    default: '3600'
+    required: false
+  aws-role-arn:
+    description: The arn of the role which is to be used for publishing
+    required: false
+    default: arn:aws:iam::102867326982:role/GithubDevCDRole
+  aws-role-token-duration:
+    description: Option to set the duration of the assumed role
+    default: '3600'
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: set-env-variables
+      shell: bash
+      run: |
+        echo "AWS_DOMAIN_OWNER=719141923726" >> $GITHUB_ENV
+        echo "AWS_REGION=us-east-1" >> $GITHUB_ENV
+        echo "DEV_REPOSITORY=dev-orfium-packages-repository" >> $GITHUB_ENV
+        echo "DEV_DOMAIN=dev-orfium-packages" >> $GITHUB_ENV
+        echo "PROD_REPOSITORY=prod-orfium-packages-repository" >> $GITHUB_ENV
+        echo "PROD_DOMAIN=prod-orfium-packages" >> $GITHUB_ENV
+    - name: Set Dev Envs
+      if: ${{ inputs.is-production == 'false' }}
+      shell: bash
+      run: |
+        echo "AWS_REPOSITORY=$DEV_REPOSITORY" >> $GITHUB_ENV
+        echo "AWS_DOMAIN=$DEV_DOMAIN" >> $GITHUB_ENV
+    - name: Set Prod Envs
+      if: ${{ inputs.is-production == 'true' }}
+      shell: bash
+      run: |
+        echo "AWS_REPOSITORY=$PROD_REPOSITORY" >> $GITHUB_ENV
+        echo "AWS_DOMAIN=$PROD_DOMAIN" >> $GITHUB_ENV
+    - name: Configure AWS Credentials.
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws-role-arn }}
+        aws-region: ${{ env.AWS_REGION }}
+        mask-aws-account-id: false
+        role-duration-seconds: ${{ inputs.aws-role-token-duration }}
+    - name: Get Codeartifact token and repository
+      shell: bash
+      run: |
+        CODEARTIFACT_LOCAL_REPOSITORY=$(aws codeartifact get-repository-endpoint --domain ${{ env.AWS_DOMAIN }} --domain-owner ${{ env.AWS_DOMAIN_OWNER }} --repository ${{ env.AWS_REPOSITORY }} --format pypi --query repositoryEndpoint --output text)
+        CODEARTIFACT_LOCAL_TOKEN=$(aws codeartifact get-authorization-token --domain ${{ env.AWS_DOMAIN }} --domain-owner ${{ env.AWS_DOMAIN_OWNER }} --duration-seconds ${{ inputs.token-duration }} --query authorizationToken --output text)
+        echo "::add-mask::$CODEARTIFACT_LOCAL_TOKEN"
+        echo "CODEARTIFACT_REPOSITORY=$CODEARTIFACT_LOCAL_REPOSITORY" >> $GITHUB_ENV
+        echo "CODEARTIFACT_TOKEN=$CODEARTIFACT_LOCAL_TOKEN" >> $GITHUB_ENV
