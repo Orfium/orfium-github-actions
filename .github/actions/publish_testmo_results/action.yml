@@ -1,0 +1,90 @@
+name: 'Publish to Testmo'
+description: 'Publish test results to Testmo'
+inputs:
+  instance_url:
+    description: "Testmo instance url"
+    required: false
+    default: 'https://orfium.testmo.net'
+  project_id:
+    description: 'Testmo Project ID'
+    required: true
+  source:
+    description: 'Source of the tests'
+    required: true
+  name:
+    description: 'Name of the test run. You can provide the marker, environment and type of test run.'
+    required: true
+  results:
+    description: 'Path to the results file'
+    required: true
+  testmo_token:
+    description: "Testmo API token"
+    required: true
+  testmo_fields:
+    description: 'JSON string of dynamic fields to add'
+    required: false
+    default: '[]'  # Default to an empty array
+  testmo_links:
+    description: 'JSON string of dynamic links to add'
+    required: false
+    default: '[]'  # Default to an empty array
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: Install testmo cli
+      shell: bash
+      run: npm install -g @testmo/testmo-cli
+
+    - name: Add useful Github field and link in the test run
+      shell: bash
+      run: |
+        testmo automation:resources:add-field --name git --type string \
+          --resources testmo-resources.json --value ${GITHUB_SHA:0:7} 
+        RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+        testmo automation:resources:add-link --name github_build \
+          --url $RUN_URL --resources testmo-resources.json
+
+    - name: Dynamically add fields
+      if: ${{ inputs.testmo_fields != '[]' }}
+      shell: bash
+      run: |
+        FIELDS='${{ inputs.testmo_fields }}'
+        echo "Adding fields..."
+        echo "$FIELDS" | jq -c '.[]' | while read -r FIELD; do
+          NAME=$(echo "$FIELD" | jq -r '.name')
+          VALUE=$(echo "$FIELD" | jq -r '.value')
+          testmo automation:resources:add-field --name "$NAME" --type string \
+            --resources testmo-resources.json --value "$VALUE"
+        done
+      env:
+        TESTMO_TOKEN: ${{ inputs.testmo_token }}
+
+    - name: Dynamically add links
+      if: ${{ inputs.testmo_links != '[]' }}
+      shell: bash
+      run: |
+        LINKS='${{ inputs.testmo_links }}'
+        echo "Adding links..."
+        echo "$LINKS" | jq -c '.[]' | while read -r LINK; do
+          NAME=$(echo "$LINK" | jq -r '.name')
+          URL=$(echo "$LINK" | jq -r '.url')
+          testmo automation:resources:add-link --name "$NAME" \
+            --url "$URL" --resources testmo-resources.json
+        done
+      env:
+        TESTMO_TOKEN: ${{ inputs.testmo_token }}
+
+    - name: Publish test automation run to Testmo
+      shell: bash
+      run: |
+        testmo automation:run:submit \
+          --instance ${{ inputs.instance_url }} \
+          --project-id ${{ inputs.project_id }} \
+          --name "${{ inputs.name }}" \
+          --source "${{ inputs.source }}" \
+          --results "${{ inputs.results }}" \
+          --resources testmo-resources.json
+      env:
+        TESTMO_TOKEN: ${{ inputs.testmo_token }}
