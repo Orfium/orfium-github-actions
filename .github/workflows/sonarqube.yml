@@ -4,6 +4,10 @@ on:
       COVERAGE_CACHE_DIR:
         required: true
         type: string
+      RUNNER:
+        required: false
+        type: string
+        default: ubuntu-latest
     secrets:
       SONAR_TOKEN:
         required: true
@@ -12,7 +16,7 @@ on:
 
 jobs:
   sonarqube:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.RUNNER }}
     steps:
       - name: Declare Coverage Cache Registry
         id: coverage-cache
