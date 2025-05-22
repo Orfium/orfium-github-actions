@@ -172,7 +172,7 @@ jobs:
 
       - name: Publish test results to Testmo
         if: always() && inputs.TESTMO_RESULTS_PATH && inputs.TESTMO_PROJECT_ID && inputs.TESTMO_SOURCE_NAME && inputs.TESTMO_RUN_NAME && env.testmo-token-set == 'true'
-        uses: Orfium/github-actions/.github/actions/publish_testmo_results@master
+        uses: Orfium/orfium-github-actions/.github/actions/publish_testmo_results@master
         with:
           project_id: ${{ inputs.TESTMO_PROJECT_ID }}
           source: ${{ inputs.TESTMO_SOURCE_NAME }}
