@@ -31,7 +31,7 @@ jobs:
 
       - name: Configure AWS Credentials
         id: configure-aws-creds
-        uses: aws-actions/configure-aws-credentials@v4.0.2
+        uses: aws-actions/configure-aws-credentials@v4.1.0
         with:
           role-to-assume: ${{ env.AWS_CD_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
