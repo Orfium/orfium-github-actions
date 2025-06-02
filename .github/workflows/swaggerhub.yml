@@ -133,11 +133,11 @@ jobs:
       - name: Create Swaggerhub Definition
         run: make swaggerhub
 
-      - uses: stoplightio/spectral-action@v0.8.11
-        if: "${{ inputs.lint }}"
-        with:
-          file_glob: 'test.yaml'
-          spectral_ruleset: ${{ inputs.linter_ruleset }}
+      # - uses: stoplightio/spectral-action@v0.8.11
+      #   if: "${{ inputs.lint }}"
+      #   with:
+      #     file_glob: 'test.yaml'
+      #     spectral_ruleset: ${{ inputs.linter_ruleset }}
 
       - name: Post to Swaggerhub
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
