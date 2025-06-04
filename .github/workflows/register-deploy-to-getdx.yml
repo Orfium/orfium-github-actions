@@ -1,0 +1,54 @@
+name: Register deploy in DX Data Cloud
+on:
+  workflow_call:
+    inputs:
+        service:
+            required: true
+            type: string
+
+    secrets:
+        DX_DEPLOYMENT_API_TOKEN:
+            required: true
+            description: DX Data Cloud API Token for Deployments
+
+jobs:
+  register_deploy:
+    runs-on: ubuntu-latest
+    env:
+      API_TOKEN: ${{ secrets.DX_DEPLOYMENT_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Register deploy
+        run: |
+          sha=$(git rev-parse HEAD)
+          ts=$(date +%s)
+
+          # Supported environments to deploy
+          if [ "${{ github.event.workflow_run.head_branch }}" == "main" ] || [ "${{ github.event.workflow_run.head_branch }}" == "master" ]; then
+            environment=production
+          elif [ "${{ github.event.workflow_run.head_branch }}" == "staging" ]; then
+            environment=staging
+          elif [ "${{ github.event.workflow_run.head_branch }}" == "develop" ] || [ "${{ github.event.workflow_run.head_branch }}" == "development" ]; then
+            environment=development
+          else
+            echo "Branch not supported by DX deployment service. Please use one of main, master, staging, develop, development."
+            exit 1
+          fi
+
+          # Capture the result of the deployment
+          if [ "${{ github.event.workflow_run.conclusion }}" == "success" ]; then
+            success=true
+          else
+            success=false
+          fi
+
+          baseUrl="https://orfium.getdx.net"
+
+          curl -f -X POST \
+            -H "Authorization: Bearer ${API_TOKEN}" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "service=${{ inputs.service }}&environment=${environment}&repository=${{ github.repository }}&commit_sha=${sha}&deployed_at=${ts}&github_username=${GITHUB_ACTOR}&success=${success}" \
+            "${baseUrl}/api/deployments.create"
+          

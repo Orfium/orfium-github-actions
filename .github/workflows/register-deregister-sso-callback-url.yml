@@ -1,0 +1,80 @@
+name: Deregister SSO Callback URL
+on:
+  workflow_call:
+    inputs:
+      client_id:
+        required: true
+        type: string
+      url:
+        required: true
+        type: string
+      action:
+        type: string
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  SSOCallbackURL:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4.1.0
+        with:
+          role-to-assume: arn:aws:iam::102867326982:role/GithubSSORole
+          aws-region: us-east-1
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+      - name: Install pip packages
+        run: pip install requests aws-requests-auth botocore
+      - name: Deregister Callback URL
+        if: "${{ inputs.action == 'deregister' }}"
+        shell: python
+        run: |
+          import requests
+          from aws_requests_auth.boto_utils import BotoAWSRequestsAuth
+
+          # IAM authorization when using custom domain api.id.orfium-staging.com is not working
+          sso_facade_host = "3uhhphopjg.execute-api.us-east-1.amazonaws.com"
+
+          data = {
+            "client_id": "${{ inputs.client_id }}",
+            "url": "${{ inputs.url }}"
+          }
+
+          url = f"https://{sso_facade_host}/staging/apps/deregister/"
+
+          auth = BotoAWSRequestsAuth(
+              aws_host=f"{sso_facade_host}",
+              aws_region="us-east-1",
+              aws_service="execute-api",
+          )
+          response = requests.post(url, json=data, auth=auth)
+          response.content
+      - name: Register Callback URL
+        if: "${{ inputs.action == 'register' }}"
+        shell: python
+        run: |
+          import requests
+          from aws_requests_auth.boto_utils import BotoAWSRequestsAuth
+
+          # IAM authorization when using custom domain api.id.orfium-staging.com is not working
+          sso_facade_host = "3uhhphopjg.execute-api.us-east-1.amazonaws.com"
+
+          data = {
+            "client_id": "${{ inputs.client_id }}",
+            "url": "${{ inputs.url }}"
+          }
+
+          url = f"https://{sso_facade_host}/staging/apps/register/"
+
+          auth = BotoAWSRequestsAuth(
+              aws_host=f"{sso_facade_host}",
+              aws_region="us-east-1",
+              aws_service="execute-api",
+          )
+          response = requests.post(url, json=data, auth=auth)
+          response.content

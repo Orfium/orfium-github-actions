@@ -1,0 +1,65 @@
+name: poetry publisher to code artifact
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        description: The library version to publish.
+        default: ""
+        required: false
+      is-production:
+        type: boolean
+        description: Option to set the publishing to the Orfium Production repository
+        default: false
+        required: false
+      python-version:
+        type: string
+        description: The repository you want to use.
+        default: "3.9"
+        required: false
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: true
+
+jobs:
+  get-codeartifact-info:
+    uses: Orfium/github-actions/.github/workflows/get_codeartifact_publishing_info.yml@master
+    with:
+      is-production: ${{inputs.is-production}}
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE: ${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}
+
+  publish-package:
+    needs:
+      - get-codeartifact-info
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo.
+        uses: actions/checkout@v4
+      - name: Set up python ${{ inputs.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ inputs.python-version }}"
+      - name: Decrypt Codeartifact token
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ needs.get-codeartifact-info.outputs.encrypted-token }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN=$token" >> "$GITHUB_ENV"
+      - name: Install dependencies.
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+      - name: Configure dynamic poetry variables.
+        id: configure-poetry-creds
+        run: |
+          poetry config repositories.publish ${{ needs.get-codeartifact-info.outputs.codeartifact-repository }}
+          echo "POETRY_HTTP_BASIC_PUBLISH_USERNAME=aws" >> "$GITHUB_ENV"
+          echo "POETRY_HTTP_BASIC_PUBLISH_PASSWORD=$CODEARTIFACT_TOKEN" >> "$GITHUB_ENV"
+      - name: Set poetry version
+        if: inputs.version != ''
+        run: |
+          poetry version "${{ inputs.version }}"
+      - name: Publish package to Orfium PyPI cloud server
+        run: |
+          poetry publish --build --repository publish
