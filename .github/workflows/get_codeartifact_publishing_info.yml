@@ -1,0 +1,72 @@
+name: Get Codeartifact info
+
+on:
+  workflow_call:
+    inputs:
+      is-production:
+        type: boolean
+        description: Whether to retrieve tokens from dev or production repository
+        default: false
+        required: false
+      token-duration:
+        type: string
+        description: Option to set token's duration until expiration
+        default: 3600
+        required: false
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: true
+    outputs:
+      encrypted-token: 
+        description: The encrypted codeartifact token
+        value: ${{ jobs.get-codeartifact-info.outputs.encrypted-token }}
+      codeartifact-repository: 
+        description: The repository of the codeartifact
+        value: ${{ jobs.get-codeartifact-info.outputs.codeartifact-repository }}
+env:
+  AWS_DOMAIN_OWNER: 719141923726
+  AWS_REGION: us-east-1
+  DEV_REPOSITORY: dev-orfium-packages-repository
+  DEV_DOMAIN: dev-orfium-packages
+  PROD_REPOSITORY: prod-orfium-packages-repository
+  PROD_DOMAIN: prod-orfium-packages
+  AWS_DEV_ROLE_ARN: arn:aws:iam::719141923726:role/GithubToolsDevCodeArtifactAdminRole
+  AWS_PROD_ROLE_ARN: arn:aws:iam::719141923726:role/GithubToolsProdCodeArtifactAdminRole
+
+jobs:
+  get-codeartifact-info:
+    runs-on: ubuntu-latest
+    outputs:
+      encrypted-token: ${{ steps.get-codeartifact-token.outputs.CODEARTIFACT_TOKEN_ENCRYPTED}}
+      codeartifact-repository: ${{steps.get-codeartifact-token.outputs.CODEARTIFACT_REPOSITORY}}
+    steps:
+      - name: Set Dev Envs
+        if: ${{ inputs.is-production == false }} 
+        run: |
+          # shellcheck disable=SC2129
+          echo "AWS_ROLE_ARN=$AWS_DEV_ROLE_ARN" >> "$GITHUB_ENV"
+          echo "AWS_REPOSITORY=$DEV_REPOSITORY" >> "$GITHUB_ENV"
+          echo "AWS_DOMAIN=$DEV_DOMAIN" >> "$GITHUB_ENV"
+      - name: Set Prod Envs
+        if: ${{ inputs.is-production == true }} 
+        run: |
+          # shellcheck disable=SC2129
+          echo "AWS_ROLE_ARN=$AWS_PROD_ROLE_ARN" >> "$GITHUB_ENV"
+          echo "AWS_REPOSITORY=$PROD_REPOSITORY" >> "$GITHUB_ENV"
+          echo "AWS_DOMAIN=$PROD_DOMAIN" >> "$GITHUB_ENV"
+      - name: Configure AWS Credentials.
+        id: configure-aws-creds
+        uses: aws-actions/configure-aws-credentials@v4.1.0
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: false
+      - name: Get Codeartifact token and repository
+        id: get-codeartifact-token
+        run: |
+          CODEARTIFACT_LOCAL_REPOSITORY=$(aws codeartifact get-repository-endpoint --domain ${{ env.AWS_DOMAIN }} --domain-owner ${{ env.AWS_DOMAIN_OWNER }} --repository ${{ env.AWS_REPOSITORY }} --format pypi --query repositoryEndpoint --output text)
+          CODEARTIFACT_LOCAL_TOKEN=$(aws codeartifact get-authorization-token --domain ${{ env.AWS_DOMAIN }} --domain-owner ${{ env.AWS_DOMAIN_OWNER }} --duration-seconds ${{ inputs.token-duration }} --query authorizationToken --output text)
+          echo "::add-mask::$CODEARTIFACT_LOCAL_TOKEN"
+          echo "CODEARTIFACT_REPOSITORY=$CODEARTIFACT_LOCAL_REPOSITORY" >> "$GITHUB_OUTPUT"
+          encrypted_token=$(gpg --symmetric --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "$CODEARTIFACT_LOCAL_TOKEN") | base64 -w0)
+          echo "CODEARTIFACT_TOKEN_ENCRYPTED=$encrypted_token" >> "$GITHUB_OUTPUT"
