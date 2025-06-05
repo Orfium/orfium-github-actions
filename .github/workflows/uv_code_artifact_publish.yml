@@ -1,0 +1,68 @@
+name: uv publisher to code artifact
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        description: The library version to publish.
+        default: ""
+        required: false
+      is-production:
+        type: boolean
+        description: Option to set the publishing to the Orfium Production repository
+        default: false
+        required: false
+      python-version:
+        type: string
+        description: The repository you want to use.
+        default: "3.9"
+        required: false
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: true
+
+jobs:
+  get-codeartifact-info:
+    uses: Orfium/github-actions/.github/workflows/get_codeartifact_publishing_info.yml@master
+    with:
+      is-production: ${{inputs.is-production}}
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE: ${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}
+
+  publish-package:
+    needs:
+      - get-codeartifact-info
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo.
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ inputs.python-version }}"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Decrypt Codeartifact token
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ needs.get-codeartifact-info.outputs.encrypted-token }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN=$token" >> "$GITHUB_ENV"
+      - name: Configure environment for CodeArtifact
+        run: |
+          {
+            echo "UV_PUBLISH_URL=${{ needs.get-codeartifact-info.outputs.codeartifact-repository }}"
+            echo "UV_PUBLISH_USERNAME=aws"
+            echo "UV_PUBLISH_PASSWORD=$CODEARTIFACT_TOKEN"
+          } >> "$GITHUB_ENV"
+      - name: Set package version
+        if: inputs.version != ''
+        run: |
+          # Update version in pyproject.toml
+          sed -i "s/^version = \".*\"/version = \"${{ inputs.version }}\"/" pyproject.toml
+      - name: Build and publish package
+        run: |
+          uv build
+          uv publish dist/*
