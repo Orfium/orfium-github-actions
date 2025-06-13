@@ -1,0 +1,39 @@
+name: Release on GitHub
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version to release'
+        required: true
+        type: string
+      notes:
+        description: 'Release notes'
+        required: true
+        type: string
+      is-production:
+        description: 'Whether this is a production release. When false, creates a prerelease with draft status'
+        required: true
+        type: boolean
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@main
+      - name: Create Release Notes File
+        run: |
+          echo "${{ inputs.notes }}" > release_notes.txt
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # When is-production is false, we create a prerelease with draft status
+          # The title will be "PreRelease" instead of "Release"
+          # For production releases, version should already include 'v' prefix
+          # For pre-releases, we need to add it
+          gh release create "${{ inputs.is-production && inputs.version || format('v{0}', inputs.version) }}" \
+          --title "${{ !inputs.is-production && 'PreRelease' || 'Release' }} ${{ inputs.is-production && inputs.version || format('v{0}', inputs.version) }}" \
+          --notes-file "$GITHUB_WORKSPACE/release_notes.txt" \
+          ${{ !inputs.is-production && '--prerelease --draft' || '' }} 
