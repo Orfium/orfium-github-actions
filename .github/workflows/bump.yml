@@ -1,5 +1,15 @@
 on:
   workflow_call:
+    inputs:
+      bump_provider:
+        required: false
+        type: string
+        description: 'Version bumping provider to use. Options: "semantic-release" (default) or "commitizen"'
+        default: semantic-release
+      branch:
+        required: false
+        type: string
+        description: 'Branch to checkout when using commitizen. Required when bump_provider is "commitizen"'
     secrets:
       RELEASE_TOKEN:
         required: true
@@ -7,7 +17,6 @@ on:
       latest-release-version:
         description: "The last version"
         value: ${{ jobs.bump.outputs.latest-release-version }}
-      
 
 jobs:
   bump:
@@ -15,19 +24,55 @@ jobs:
     outputs:
       latest-release-version: ${{ steps.release.outputs.VERSION }}
     steps:
+      - name: Echo Bump Provider
+        run: |
+          if [ "${{ inputs.bump_provider }}" = "semantic-release" ]; then
+            echo "Using semantic-release for version bumping"
+          else
+            echo "Using commitizen for version bumping"
+          fi
+
       - name: Checkout Repository
         uses: actions/checkout@v4
-      
-      - name: Install dependencies
+        with:
+          ref: ${{ inputs.branch != '' && inputs.branch || github.ref }}
+          fetch-depth: 0
+
+      # Semantic Release Setup
+      - name: Install Node.js dependencies
+        if: inputs.bump_provider == 'semantic-release'
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
       
-      - name: Install dependencies
+      - name: Install Yarn dependencies
+        if: inputs.bump_provider == 'semantic-release'
         run: yarn install
-      
-      - name: Release
+
+      # Commitizen Setup
+      - name: Setup Python 3.10
+        if: inputs.bump_provider == 'commitizen'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: x64
+
+      - name: Install Commitizen
+        if: inputs.bump_provider == 'commitizen'
+        run: |
+          pip install commitizen
+
+      # Version Bumping
+      - name: Run semantic-release
+        if: inputs.bump_provider == 'semantic-release'
         id: release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: npx semantic-release
+
+      - name: Run commitizen
+        if: inputs.bump_provider == 'commitizen'
+        uses: commitizen-tools/commitizen-action@0.24.0
+        with:
+          push: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
