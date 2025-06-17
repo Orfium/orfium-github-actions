@@ -24,7 +24,7 @@ on:
 
 jobs:
   get-codeartifact-info:
-    uses: Orfium/github-actions/.github/workflows/get_codeartifact_publishing_info.yml@master
+    uses: Orfium/orfium-github-actions/.github/workflows/get_codeartifact_publishing_info.yml@master
     with:
       is-production: ${{inputs.is-production}}
     secrets:
