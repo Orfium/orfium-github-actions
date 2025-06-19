@@ -1,0 +1,83 @@
+name: Detect Release Parameters
+
+on:
+  workflow_call:
+    inputs:
+      is-production:
+        description: 'Whether this is a production release. When false, creates a prerelease version with dev suffix'
+        required: true
+        type: boolean
+      ref:
+        description: 'Git reference to use'
+        required: true
+        type: string
+      head_ref:
+        description: 'Head reference for PRs'
+        required: false
+        type: string
+    outputs:
+      version:
+        description: 'The version to release'
+        value: ${{ jobs.detect-parameters.outputs.version }}
+      notes:
+        description: 'The release notes'
+        value: ${{ jobs.detect-parameters.outputs.notes }}
+      sha_short:
+        description: 'The short SHA of the commit'
+        value: ${{ jobs.detect-parameters.outputs.sha_short }}
+
+env:
+  ACTIONS_ALLOW_UNSECURE_COMMANDS: 'true'
+
+jobs:
+  detect-parameters:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ inputs.is-production && steps.production_version.outputs.version || steps.versioner.outputs.version }}
+      notes: ${{ steps.generate_notes.outputs.notes }}
+      sha_short: ${{ steps.sha.outputs.sha_short }}
+    steps:
+      - name: Setup Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: x64
+      - name: Checkout Repository
+        uses: actions/checkout@main
+        with:
+          ref: ${{ inputs.head_ref || inputs.ref }}
+          fetch-depth: 0
+      - name: Store short sha in a variable
+        id: sha
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Run commitizen in order to detect version increment
+        if: ${{ !inputs.is-production }}
+        uses: commitizen-tools/commitizen-action@0.24.0
+        id: cz
+        with:
+          push: false
+      - name: Get notes
+        id: generate_notes
+        uses: anmarkoulis/commitizen-changelog-reader@v1.2.0
+        with:
+          # When is-production is false, we create a prerelease version with dev suffix
+          # Format: v{version}.dev+{sha}
+          tag_name: ${{ !inputs.is-production && format('refs/tags/v{0}.dev+{1}', steps.cz.outputs.version, steps.sha.outputs.sha_short) || inputs.ref }}
+          changelog: CHANGELOG.md
+      - name: Create version from commitizen and short sha
+        id: versioner
+        # Only create dev version when not in production mode
+        if: ${{ !inputs.is-production }}
+        run: |
+          echo "version=${{ steps.cz.outputs.version }}.dev+${{ steps.sha.outputs.sha_short }}" >> "$GITHUB_OUTPUT"
+      - name: Set production version
+        id: production_version
+        if: ${{ inputs.is-production }}
+        run: |
+          # For production releases, use the version from the tag
+          # Remove 'refs/tags/v' prefix if it exists
+          VERSION=${{ inputs.ref }}
+          VERSION=${VERSION#refs/tags/v}
+          VERSION=${VERSION#v}
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT" 
