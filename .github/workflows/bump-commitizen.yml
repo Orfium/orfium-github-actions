@@ -1,0 +1,44 @@
+on:
+  workflow_call:
+    inputs:
+      branch:
+        required: true
+        type: string
+        description: 'Branch to checkout when using commitizen'
+    secrets:
+      RELEASE_TOKEN:
+        required: true
+    outputs:
+      latest-release-version:
+        description: "The last version"
+        value: ${{ jobs.bump.outputs.latest-release-version }}
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    outputs:
+      latest-release-version: ${{ steps.release.outputs.VERSION }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          token: ${{ secrets.RELEASE_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: x64
+
+      - name: Install Commitizen
+        run: |
+          pip install commitizen
+
+      - name: Run commitizen
+        id: release
+        uses: commitizen-tools/commitizen-action@0.24.0
+        with:
+          push: true
+          github_token: ${{ secrets.RELEASE_TOKEN }}
