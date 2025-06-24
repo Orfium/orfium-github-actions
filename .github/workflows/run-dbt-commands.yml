@@ -55,6 +55,7 @@ jobs:
             echo "Invalid environment! Must be either 'production' or 'integration'. Got '${{ inputs.environment }}'"
             exit 1
           fi
+
       - name: Set environment variables
         id: set-env
         run: |
