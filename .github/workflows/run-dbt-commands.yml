@@ -62,7 +62,7 @@ jobs:
           TEAM="${{ inputs.team }}"
           TARGET_DAG_ID="dbt_runner_${TEAM}"
           echo "TARGET_DAG_ID=${TARGET_DAG_ID}" >> "$GITHUB_ENV"
-          
+
           # Set Airflow API endpoints based on env input
           if [ "${{ inputs.environment }}" == "production" ]; then
             echo "AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT=https://data-platform-airflow.data.orfium.com/airflow/api/v1/dags/${TARGET_DAG_ID}/dagRuns" >> "$GITHUB_ENV"
@@ -83,7 +83,7 @@ jobs:
           echo 'DBT_ORFIUM_HEADERS={"Content-Type": "application/json"}' >> "$GITHUB_ENV"
 
           # Cap timeout at 3600 if it's larger
-          TIMEOUT="${{ inputs.timeout }}" 
+          TIMEOUT="${{ inputs.timeout }}"
           if [ "$TIMEOUT" -gt 3600 ]; then
             echo "Timeout value ${{ inputs.timeout }} exceeds maximum allowed (3600). Capping at 3600 seconds."
             TIMEOUT=3600
@@ -123,11 +123,11 @@ jobs:
           auth = (DBT_SERVICE_AIRFLOW_USERNAME, DBT_SERVICE_AIRFLOW_PASSWORD)
 
           data = {
-              "conf": {
-                  "git_sha": GIT_SHA,
-                  "dbt_steps": DBT_STEPS,
-                  "snowflake_conn_id": SNOWFLAKE_CONN_ID
-              }
+            "conf": {
+              "git_sha": GIT_SHA,
+              "dbt_steps": DBT_STEPS,
+              "snowflake_conn_id": SNOWFLAKE_CONN_ID
+            }
           }
 
           response = requests.post(AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT, auth=auth, headers=DBT_ORFIUM_HEADERS_DICT, data=json.dumps(data))
@@ -199,7 +199,7 @@ jobs:
             logs_headers = {
               **DBT_ORFIUM_HEADERS_DICT,
               **{
-                  "Accept": "text/plain"
+                "Accept": "text/plain"
               },  # explicitly specifying to respond with text format.
             }
 
