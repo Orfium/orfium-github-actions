@@ -112,6 +112,9 @@ jobs:
           import os
           import sys
 
+          from requests.adapters import HTTPAdapter, Retry
+          from requests.exceptions import RequestException
+
           AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT = os.environ.get('AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT')
           GIT_SHA = os.environ.get('GIT_SHA')
           DBT_STEPS = os.environ.get('DBT_STEPS')
@@ -122,6 +125,44 @@ jobs:
 
           auth = (DBT_SERVICE_AIRFLOW_USERNAME, DBT_SERVICE_AIRFLOW_PASSWORD)
 
+
+          def post_with_retry(url, auth=None, data=None, headers=None, max_retries=3, timeout=5):
+            """
+            Send a POST request with automatic retries (with exponential backoff) for status codes in `{status_forcelist}`.
+
+            See below for a list of the status codes that trigger an automatic retry
+            https://www.restapitutorial.com/advanced/responses/retries
+            """
+
+            session = requests.Session()
+
+            retries = Retry(
+              total=max_retries,
+              backoff_factor=1,  # exponential backoff: 0, 2, 4
+              status_forcelist=[408, 429, 500, 502, 503, 504],
+              allowed_methods={"POST"},
+              respect_retry_after_header=True,  # will respect the Retry-After seconds in the headers in case of 429
+              raise_on_status=True,  # will raise a MaxRetryError if retries have been exhausted and the status falls in the `status_forcelist`
+              raise_on_redirect=True
+            )
+
+            adapter = HTTPAdapter(max_retries=retries)
+            session.mount("https://", adapter)
+
+            try:
+              response = session.post(url, auth=auth, data=data, headers=headers, timeout=timeout)
+              if response.status_code == 200:
+                return response
+              else:  # the LAST response status is neither 200 nor belongs to `status_forcelist`
+                res_dict = response.json()  # safe to decode because it's an Airflow API response
+                print(f"Status: {res_dict['status']}: {res_dict['title']} - {res_dict['detail']}")
+                sys.exit(1)
+            except RequestException as e:  # urllib3 MaxRetryError is wrapped in a subclass of RequestException
+              print(f"Exception type: {type(e).__name__}")
+              print(f"Exception message: {e}")
+              sys.exit(1)
+
+
           data = {
             "conf": {
               "git_sha": GIT_SHA,
@@ -130,17 +171,18 @@ jobs:
             }
           }
 
-          response = requests.post(AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT, auth=auth, headers=DBT_ORFIUM_HEADERS_DICT, data=json.dumps(data))
-          if response.ok:
-            dag_run_state = response.json()["state"]
-            if dag_run_state != "failed":
-              DAG_RUN_ID = response.json()["dag_run_id"]
+          response = post_with_retry(url=AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT, auth=auth, headers=DBT_ORFIUM_HEADERS_DICT, data=json.dumps(data))
 
-              with open(os.environ.get('GITHUB_ENV'), "a") as env_file:
-                env_file.write(f"DAG_RUN_ID={DAG_RUN_ID}")
-            else:
-              print(f"dbt run ended prematurely with error status: {dag_run_state}")
-              sys.exit(1)
+          dag_run_state = response.json()["state"]
+          if dag_run_state != "failed":
+            DAG_RUN_ID = response.json()["dag_run_id"]
+            print(f"DBT Service DAG_RUN_ID: {DAG_RUN_ID}")
+
+            with open(os.environ.get('GITHUB_ENV'), "a") as env_file:
+              env_file.write(f"DAG_RUN_ID={DAG_RUN_ID}")
+          else:
+            print(f"dbt run ended prematurely with error status: {dag_run_state}")
+            sys.exit(1)
 
       # Commented out until a solution to avoid masking is found
       #
@@ -173,6 +215,9 @@ jobs:
           import sys
           import time
 
+          from requests.adapters import HTTPAdapter, Retry
+          from requests.exceptions import RequestException
+
           # get env variables
           DAG_RUN_ID = os.environ.get('DAG_RUN_ID')
           AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT = os.environ.get('AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT')
@@ -195,6 +240,43 @@ jobs:
           auth = (DBT_SERVICE_AIRFLOW_USERNAME, DBT_SERVICE_AIRFLOW_PASSWORD)
 
 
+          def get_with_retry(url, auth=None, params=None, headers=None, max_retries=3, timeout=5):
+            """
+            Send a GET request with automatic retries (with exponential backoff) for status codes in `{status_forcelist}`.
+
+            See below for a list of the status codes that trigger an automatic retry
+            https://www.restapitutorial.com/advanced/responses/retries
+            """
+
+            session = requests.Session()
+
+            retries = Retry(
+              total=max_retries,
+              backoff_factor=1,  # exponential backoff: 0, 2, 4
+              status_forcelist=[408, 429, 500, 502, 503, 504],
+              allowed_methods={"GET"},
+              respect_retry_after_header=True,  # will respect the Retry-After seconds in the headers in case of 429
+              raise_on_status=True,  # will raise a MaxRetryError if retries have been exhausted and the status falls in the `status_forcelist`
+              raise_on_redirect=True
+            )
+
+            adapter = HTTPAdapter(max_retries=retries)
+            session.mount("https://", adapter)
+
+            try:
+              response = session.get(url, auth=auth, params=params, headers=headers, timeout=timeout)
+              if response.status_code == 200:
+                return response
+              else:  # the LAST response status is neither 200 nor belongs to `status_forcelist`
+                res_dict = response.json()  # safe to decode because it's an Airflow API response
+                print(f"Status: {res_dict['status']}: {res_dict['title']} - {res_dict['detail']}")
+                sys.exit(1)
+            except RequestException as e:  # urllib3 MaxRetryError is wrapped in a subclass of RequestException
+              print(f"Exception type: {type(e).__name__}")
+              print(f"Exception message: {e}")
+              sys.exit(1)
+
+
           def retrieve_logs():
             logs_headers = {
               **DBT_ORFIUM_HEADERS_DICT,
@@ -207,20 +289,14 @@ jobs:
             # to specify whether to retrieve only the first log fragment or the full content.
             params = {"full_content": True}
 
-            response = requests.get(AIRFLOW_API_GET_LOGS_ENDPOINT, auth=auth, headers=logs_headers, params=params)
-            if response.ok:
-              return response.text
+            response = get_with_retry(AIRFLOW_API_GET_LOGS_ENDPOINT, auth=auth, headers=logs_headers, params=params)
+            return response.text
 
 
           def get_dag_run_status():
-            try:
-              response = requests.get(AIRFLOW_API_GET_DAG_RUN_ENDPOINT, auth=auth, headers=DBT_ORFIUM_HEADERS_DICT)
-              if response.ok:
-                status = response.json().get("state")
-                return status
-            except requests.exceptions.RequestException as e:
-              print(f"Error fetching DAG status: {e}")
-              return None
+            response = get_with_retry(AIRFLOW_API_GET_DAG_RUN_ENDPOINT, auth=auth, headers=DBT_ORFIUM_HEADERS_DICT)
+            status = response.json().get("state")
+            return status
 
 
           end_time = time.time() + TIMEOUT
