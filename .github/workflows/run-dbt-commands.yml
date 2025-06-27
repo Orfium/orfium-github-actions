@@ -12,8 +12,8 @@ on:
         description: 'Team / Data Product name (lowercase)'
         required: true
         type: string
-      git_sha:
-        description: 'The git SHA of your repository'
+      git_ref:
+        description: 'The git ref (branch name, commit SHA or tag) of your repository'
         required: true
         type: string
       steps:
@@ -101,7 +101,7 @@ jobs:
       - name: Trigger Airflow DAG Run
         id: trigger-dag
         env:
-          GIT_SHA: ${{ inputs.git_sha }}
+          GIT_REF: ${{ inputs.git_ref }}
           DBT_STEPS: ${{ inputs.steps }}
           DBT_SERVICE_AIRFLOW_USERNAME: ${{ secrets.DBT_SERVICE_AIRFLOW_USERNAME }}
           DBT_SERVICE_AIRFLOW_PASSWORD: ${{ secrets.DBT_SERVICE_AIRFLOW_PASSWORD }}
@@ -116,7 +116,7 @@ jobs:
           from requests.exceptions import RequestException
 
           AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT = os.environ.get('AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT')
-          GIT_SHA = os.environ.get('GIT_SHA')
+          GIT_REF = os.environ.get('GIT_REF')
           DBT_STEPS = os.environ.get('DBT_STEPS')
           SNOWFLAKE_CONN_ID = os.environ.get('SNOWFLAKE_CONN_ID')
           DBT_ORFIUM_HEADERS_DICT = json.loads(os.environ.get('DBT_ORFIUM_HEADERS'))
@@ -165,7 +165,7 @@ jobs:
 
           data = {
             "conf": {
-              "git_sha": GIT_SHA,
+              "git_sha": GIT_REF,  # TODO: update when DBT Service auto-generated DAGs adopt the new naming
               "dbt_steps": DBT_STEPS,
               "snowflake_conn_id": SNOWFLAKE_CONN_ID
             }
