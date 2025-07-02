@@ -174,7 +174,7 @@ jobs:
           response = post_with_retry(url=AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT, auth=auth, headers=DBT_ORFIUM_HEADERS_DICT, data=json.dumps(data))
 
           dag_run_state = response.json()["state"]
-          if dag_run_state != "failed":
+          if dag_run_state != "failed":  # we have just submitted the DAG Run; making sure that it has not failed
             DAG_RUN_ID = response.json()["dag_run_id"]
             print(f"DBT Service DAG_RUN_ID: {DAG_RUN_ID}")
 
