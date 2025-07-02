@@ -184,22 +184,22 @@ jobs:
             print(f"dbt run ended prematurely with error status: {dag_run_state}")
             sys.exit(1)
 
-      # Commented out until a solution to avoid masking is found
-      #
-      # - name: Output DBT Service Task Logs URL
-      #   shell: python
-      #   env:
-      #     DAG_RUN_ID: ${{ env.DAG_RUN_ID }}
-      #     AIRFLOW_WEBSERVER_BASE_URL: ${{ env.AIRFLOW_WEBSERVER_BASE_URL }}
-      #   run: |
-      #     import os
-      #     from urllib.parse import quote
+      - name: Output DBT Service Task Logs URL
+        shell: python
+        run: |
+          import os
+          from urllib.parse import quote
           
-      #     DAG_RUN_ID = os.environ.get('DAG_RUN_ID')
-      #     AIRFLOW_WEBSERVER_BASE_URL = os.environ.get('AIRFLOW_WEBSERVER_BASE_URL')
-      #     DBT_SERVICE_TASK_LOGS_URL = f"{AIRFLOW_WEBSERVER_BASE_URL}?dag_run_id={quote(DAG_RUN_ID)}&task_id=dbt_task&tab=logs"
+          DAG_RUN_ID = os.environ.get('DAG_RUN_ID')
+          AIRFLOW_WEBSERVER_BASE_URL = os.environ.get('AIRFLOW_WEBSERVER_BASE_URL')
+          DBT_SERVICE_TASK_LOGS_URL = f"{AIRFLOW_WEBSERVER_BASE_URL}?dag_run_id={quote(DAG_RUN_ID)}&task_id=dbt_task&tab=logs"
 
-      #     print(f"DBT Service Task Logs URL:\n{DBT_SERVICE_TASK_LOGS_URL}")
+          print(f"""
+          Below you can find the DBT Service Task Logs URL.
+          Part the link is likely masked, so you'll need to manually replace the "***" part
+          with the value you passed for `inputs.team` to get a valid URL.
+          DBT Service Task Logs URL:\n{DBT_SERVICE_TASK_LOGS_URL}
+          """)
 
       - name: Retrieve Logs
         if: ${{ inputs.wait_for_completion }} == true
