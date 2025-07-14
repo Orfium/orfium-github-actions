@@ -88,6 +88,129 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: false
       
+      - name: Check and Create ECR Repository with Lifecycle Policy
+        run: |
+          # Extract repository name from ECR_REGISTRY (remove the AWS account and region prefix)
+          REPOSITORY_NAME=$(echo "${{ env.ECR_REGISTRY }}" | awk -F'/' '{print $2}')
+          echo "Checking if ECR repository $REPOSITORY_NAME exists..."
+          
+          # Check if repository exists
+          if ! aws ecr describe-repositories --repository-names "$REPOSITORY_NAME" 2>/dev/null; then
+            echo "ECR repository $REPOSITORY_NAME does not exist. Creating it..."
+            aws ecr create-repository --repository-name "$REPOSITORY_NAME"
+            echo "ECR repository created successfully."
+          else
+            echo "ECR repository $REPOSITORY_NAME already exists."
+          fi
+          
+          # Check if the lifecycle policy already exists
+          echo "Checking if lifecycle policy already exists..."
+          EXISTING_POLICY=$(aws ecr get-lifecycle-policy --repository-name "$REPOSITORY_NAME" --output json 2>/dev/null || echo "")
+          
+          if [ -z "$EXISTING_POLICY" ]; then
+            echo "No existing lifecycle policy found. Creating new policy..."
+            # Set environment-specific lifecycle policy
+            LIFECYCLE_POLICY='{
+              "rules": [
+                {
+                  "rulePriority": 1,
+                  "description": "Keep 50 latest untagged images for caching",
+                  "selection": {
+                    "tagStatus": "untagged",
+                    "countType": "imageCountMoreThan",
+                    "countNumber": 50
+                  },
+                  "action": {
+                    "type": "expire"
+                  }
+                },
+                {
+                  "rulePriority": 2,
+                  "description": "Keep all production, dev, stable and latest images",
+                  "selection": {
+                    "tagStatus": "tagged",
+                    "tagPrefixList": ["production-", "dev", "stable", "latest"],
+                    "countType": "imageCountMoreThan",
+                    "countNumber": 999999
+                  },
+                  "action": {
+                    "type": "expire"
+                  }
+                },
+                {
+                  "rulePriority": 3,
+                  "description": "Keep 10 latest review images",
+                  "selection": {
+                    "tagStatus": "tagged",
+                    "tagPrefixList": ["review-"],
+                    "countType": "imageCountMoreThan",
+                    "countNumber": 10
+                  },
+                  "action": {
+                    "type": "expire"
+                  }
+                },
+                {
+                  "rulePriority": 4,
+                  "description": "Keep 10 latest integration images",
+                  "selection": {
+                    "tagStatus": "tagged",
+                    "tagPrefixList": ["integration-"],
+                    "countType": "imageCountMoreThan",
+                    "countNumber": 10
+                  },
+                  "action": {
+                    "type": "expire"
+                  }
+                }
+              ]
+            }'
+            
+            aws ecr put-lifecycle-policy --repository-name "$REPOSITORY_NAME" --lifecycle-policy-text "$LIFECYCLE_POLICY"
+            echo "Lifecycle policy set successfully."
+          else
+            echo "Lifecycle policy already exists. Skipping policy creation."
+          fi
+      
+      - name: Clean up old images
+        run: |
+          # Extract repository name from ECR_REGISTRY (remove the AWS account and region prefix)
+          REPOSITORY_NAME=$(echo "${{ env.ECR_REGISTRY }}" | awk -F'/' '{print $2}')
+          echo "Cleaning up images in repository: $REPOSITORY_NAME"
+          
+          # Get all image details including tags
+          echo "Fetching all images from repository..."
+          IMAGES=$(aws ecr list-images --repository-name "$REPOSITORY_NAME" --output json)
+          
+          # Define valid patterns
+          VALID_PATTERNS=("production-" "dev" "latest" "review-" "integration-" "stable")
+          
+          # Process each image
+          echo "Processing images..."
+          echo "$IMAGES" | jq -r '.imageDetails[] | select(.imageTags != null) | .imageTags[]' | while read -r tag; do
+            echo "Checking tag: $tag"
+            
+            # Skip if tag is empty
+            [ -z "$tag" ] && continue
+            
+            # Check if tag matches any valid pattern
+            is_valid=false
+            for pattern in "${VALID_PATTERNS[@]}"; do
+              if [[ "$tag" == *"$pattern"* ]]; then
+                is_valid=true
+                echo "Tag '$tag' matches pattern '$pattern'"
+                break
+              fi
+            done
+            
+            # If tag doesn't match any pattern, delete it
+            if [ "$is_valid" = false ]; then
+              echo "Deleting image with tag: $tag"
+              aws ecr batch-delete-image --repository-name "$REPOSITORY_NAME" --image-ids "imageTag=$tag"
+            fi
+          done
+          echo "Cleanup completed"
+      
       - name: Check if it's initial deployment
         id: check-init-deploy
         run: |
@@ -135,7 +258,7 @@ jobs:
         if: ${{ (github.event_name != 'pull_request') }}
         with:
           push: true
-          tags: ${{ env.ECR_REGISTRY }}:${{ github.sha }}
+          tags: ${{ env.ECR_REGISTRY }}:production-${{ github.sha }}
           cache-from: ${{ env.ECR_REGISTRY }}:stable
           cache-to: type=registry,ref=${{ env.ECR_REGISTRY }}:stable,mode=max,image-manifest=true,oci-mediatypes=true
           target: production
@@ -148,7 +271,7 @@ jobs:
         if: ${{ (github.event_name == 'pull_request') }}
         with:
           push: true
-          tags: ${{ env.ECR_REGISTRY }}:${{ github.sha }}
+          tags: ${{ env.ECR_REGISTRY }}:review-${{ github.sha }}
           cache-from: ${{ env.ECR_REGISTRY }}:latest
           cache-to: type=registry,ref=${{ env.ECR_REGISTRY }}:latest,mode=max,image-manifest=true,oci-mediatypes=true
           target: production
@@ -160,6 +283,10 @@ jobs:
         id: ecr-image-out
         shell: bash
         run: |
-          ECR_IMAGE=${{ env.ECR_REGISTRY }}:${{ github.sha }}
+          if [ ${{ github.event_name }} == 'pull_request' ]; then
+            ECR_IMAGE=${{ env.ECR_REGISTRY }}:review-${{ github.sha }}
+          else
+            ECR_IMAGE=${{ env.ECR_REGISTRY }}:production-${{ github.sha }}
+          fi
           echo "ECR_IMAGE=$ECR_IMAGE" >> "$GITHUB_OUTPUT"
           echo "The ECR image arn is $ECR_IMAGE"
