@@ -105,7 +105,7 @@ jobs:
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         with:
           push: true
-          tags: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:${{ github.sha }}
+          tags: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:${{ inputs.environment_id }}-${{ github.sha }}
           cache-from: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:stable
           cache-to: type=registry,ref=${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:stable,mode=max,image-manifest=true,oci-mediatypes=true
           target: ${{ inputs.docker_target }}
@@ -118,7 +118,7 @@ jobs:
         if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
         with:
           push: true
-          tags: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:${{ github.sha }}
+          tags: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:${{ inputs.environment_id }}-${{ github.sha }}
           cache-from: ${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:latest
           cache-to: type=registry,ref=${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:latest,mode=max,image-manifest=true,oci-mediatypes=true
           target: ${{ inputs.docker_target }}
@@ -130,7 +130,7 @@ jobs:
         id: ecr-image-out
         shell: bash
         run: |
-          ECR_IMAGE=${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:${{ github.sha }}
+          ECR_IMAGE=${{ steps.extract-deployment-envs.outputs.ECR_REGISTRY }}:${{ inputs.environment_id }}-${{ github.sha }}
           echo "ECR_IMAGE=$ECR_IMAGE" >> "$GITHUB_OUTPUT"
           echo "The ECR image arn is $ECR_IMAGE"
 
