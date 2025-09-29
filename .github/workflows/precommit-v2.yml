@@ -1,0 +1,151 @@
+on:
+  workflow_call:
+    inputs:
+      use_docker:
+        required: true
+        type: boolean
+        description: 'If true, runs pre-commit in Docker. If false, runs directly with Python.'
+      python_version:
+        required: false
+        type: string
+        description: 'Python version to use (required when use_docker=true, optional when use_docker=false)'
+      BUILDX_LOCAL_CACHE_DIR:
+        required: false
+        type: string
+      codeartifact_encrypted_token_dev:
+        required: false
+        type: string
+      codeartifact_encrypted_token_prod:
+        required: false
+        type: string
+      ECR_LOGIN_FLAG:
+        required: false
+        type: boolean
+        default: false
+      ECR_REGISTRY:
+        required: false
+        type: string
+      ECR_REGION:
+        required: false
+        type: string
+      AWS_CD_ROLE:
+        required: false
+        type: string
+      docker_target:
+        required: false
+        type: string
+        description: This is the target of the build.
+        default: local
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: false
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  precommit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Echo Execution Mode
+        run: |
+          if [ "${{ inputs.use_docker }}" = "true" ]; then
+            echo "Running pre-commit in Docker container with Python ${{ inputs.python_version }}"
+          else
+            echo "Running pre-commit directly with Python ${{ inputs.python_version }}"
+          fi
+
+      - name: Setup Python ${{ inputs.python_version }}
+        if: "${{ inputs.use_docker == false }}"
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          architecture: x64
+
+      - name: Set up Docker Buildx
+        if: "${{ inputs.use_docker == true }}"
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:master
+
+      - name: Set up Local Cache for Docker layers
+        if: "${{ inputs.use_docker == true && inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: actions/cache@v4
+        with:
+          path: ${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+          key: ${{ runner.os }}-buildx-local-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-local-
+
+      - name: Decrypt Codeartifact dev token
+        if: "${{ inputs.codeartifact_encrypted_token_dev != '' }}"
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_dev }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN_DEV=$token" >> "$GITHUB_ENV"
+
+      - name: Decrypt Codeartifact prod token
+        if: "${{ inputs.codeartifact_encrypted_token_prod != '' }}"
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_prod }}" | base64 --decode))
+          echo "::add-mask::$token"
+          echo "CODEARTIFACT_TOKEN_PROD=$token" >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials
+        id: test-aws-configure
+        if: "${{ inputs.use_docker == true && inputs.ECR_LOGIN_FLAG }}"
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          role-to-assume: ${{ inputs.AWS_CD_ROLE }}
+          aws-region: ${{ inputs.ECR_REGION }}
+
+      - name: Login to ECR
+        id: test-ecr-login
+        if: "${{ inputs.use_docker == true && inputs.ECR_LOGIN_FLAG }}"
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.ECR_REGISTRY }}
+
+      - name: Build local image from Cache
+        if: "${{ inputs.use_docker == true && inputs.BUILDX_LOCAL_CACHE_DIR != '' }}"
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          load: true
+          target: ${{ inputs.docker_target }}
+          tags: ${{ github.event.repository.name }}-py${{ inputs.python_version }}
+          cache-from: type=local,src=${{ inputs.BUILDX_LOCAL_CACHE_DIR }}
+          build-args: |
+            PYTHON_VERSION=${{ inputs.python_version }}
+          secrets: |  # pragma: allowlist secret
+            CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
+            CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
+
+      - name: Build local image
+        if: "${{ inputs.use_docker == true && inputs.BUILDX_LOCAL_CACHE_DIR == '' }}"
+        uses: docker/build-push-action@v5
+        with:
+          push: false
+          load: true
+          target: ${{ inputs.docker_target }}
+          tags: ${{ github.event.repository.name }}-py${{ inputs.python_version }}
+          build-args: |
+            PYTHON_VERSION=${{ inputs.python_version }}
+          secrets: |  # pragma: allowlist secret
+            CODEARTIFACT_TOKEN_DEV=${{ env.CODEARTIFACT_TOKEN_DEV }}
+            CODEARTIFACT_TOKEN_PROD=${{ env.CODEARTIFACT_TOKEN_PROD }}
+
+      - name: Run pre commit
+        run: make pre-commit args="--all-files"
+
+      - name: Tear down the Stack
+        if: "${{ inputs.use_docker == true }}"
+        run: make down-volumes
