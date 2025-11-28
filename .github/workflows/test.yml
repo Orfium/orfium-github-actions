@@ -89,14 +89,23 @@ jobs:
         run: |
           token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_dev }}" | base64 --decode))
           echo "::add-mask::$token"
-          echo "CODEARTIFACT_TOKEN_DEV=$token" >> "$GITHUB_ENV"
+          {
+            echo "CODEARTIFACT_TOKEN_DEV=$token"
+            echo "UV_INDEX_CODE_ARTIFACT_DEV_USERNAME=aws"
+            echo "UV_INDEX_CODE_ARTIFACT_DEV_PASSWORD=$token"
+          } >> "$GITHUB_ENV"
+
 
       - name: Decrypt Codeartifact prod token
         if: "${{ inputs.codeartifact_encrypted_token_prod != '' }}"
         run: |
           token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_prod }}" | base64 --decode))
           echo "::add-mask::$token"
-          echo "CODEARTIFACT_TOKEN_PROD=$token" >> "$GITHUB_ENV"
+          {
+            echo "CODEARTIFACT_TOKEN_PROD=$token"
+            echo "UV_INDEX_CODE_ARTIFACT_PROD_USERNAME=aws"
+            echo "UV_INDEX_CODE_ARTIFACT_PROD_PASSWORD=$token"
+          } >> "$GITHUB_ENV"
 
       - name: Configure AWS credentials
         id: test-aws-configure
