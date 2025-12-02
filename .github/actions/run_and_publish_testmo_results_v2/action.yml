@@ -1,0 +1,114 @@
+name: 'Run and Publish tests to Testmo'
+description: 'Run tests and publish test results to Testmo'
+inputs:
+  instance_url:
+    description: "Testmo instance url"
+    required: false
+    default: 'https://orfium.testmo.net'
+  project_id:
+    description: 'Testmo Project ID'
+    required: true
+  source:
+    description: 'Source of the tests'
+    required: true
+  name:
+    description: 'Name of the test run. You can provide the marker, environment and type of test run.'
+    required: true
+  results:
+    description: 'Path to the results file'
+    required: true
+  testmo_token:
+    description: "Testmo API token"
+    required: true
+  testmo_fields:
+    description: 'JSON string of dynamic fields to add'
+    required: false
+    default: '[]'  # Default to an empty array
+  testmo_links:
+    description: 'JSON string of dynamic links to add'
+    required: false
+    default: '[]'  # Default to an empty array
+  github_workspace:
+    description: 'The GitHub workspace directory'
+    required: true
+  github_run_id:
+    description: 'The GitHub Actions run ID'
+    required: false
+  github_repository:
+    description: 'The GitHub repository name'
+    required: false
+  environment:
+    description: 'The environment where tests are run'
+    required: true
+  marker:
+    description: 'The marker for the test run'
+    required: true
+  parallel_workers:
+    description: 'Number of parallel workers'
+    required: false
+    default: '4'
+  reruns:
+    description: 'Number of reruns for failed tests'
+    required: false
+    default: '2'
+
+runs:
+  using: "composite"
+
+  steps:
+    - name: Testmo phased run
+      shell: bash
+      run: |
+        set -e
+        
+        # Install Testmo CLI
+        npm install -g @testmo/testmo-cli
+        mkdir -p reports
+        
+        # Create a new test run in Testmo
+        echo "Create automation run"
+        RUN_ID=$(testmo automation:run:create \
+        --instance "${{ inputs.instance_url }}" \
+        --project-id ${{ inputs.project_id }} \
+        --name "${{ inputs.name }}" \
+        --source "${{ inputs.source }}" | grep -oE '^[0-9]+')
+        if [ -z "$RUN_ID" ]; then
+        echo "Failed to obtain run id"; exit 1
+        fi
+        echo "TESTMO_RUN_ID=$RUN_ID" >> $GITHUB_ENV
+        echo "Run ID: $RUN_ID"
+        
+        # Execute pytest with the selected marker and environment
+        echo "Execute pytest"
+        set +e
+        cd bdd_tests/step_defs
+        poetry run pytest -m "${{ inputs.marker }}" \
+        --env "${{ inputs.environment }}" \
+        --junitxml="${{ inputs.results }}" \
+        -n ${{ inputs.parallel_workers }} --dist=loadscope \
+        --reruns ${{ inputs.reruns }} --reruns-delay 10 \
+        --color=yes
+        EXIT_CODE=$?
+        set -e
+        cd "${{ inputs.github_workspace }}"
+        
+        # Submit test results to Testmo
+        echo "Submit thread results"
+        testmo automation:run:submit-thread \
+        --instance "${{ inputs.instance_url }}" \
+        --run-id "$RUN_ID" \
+        --results "${{ inputs.results }}"
+        
+        # Mark the Testmo run as complete
+        echo "Complete run"
+        testmo automation:run:complete \
+        --instance "${{ inputs.instance_url }}" \
+        --run-id "$RUN_ID"
+        
+        # Link to the Github build
+        RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+        npx testmo automation:resources:add-link --name build \
+          --url $RUN_URL
+        
+        echo "Exit code: $EXIT_CODE"
+        exit $EXIT_CODE  
