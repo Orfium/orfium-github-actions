@@ -1,0 +1,76 @@
+name: 'Upload screenshots and logs to test-artifacts branch'
+description: 'Upload screenshots and log files from failed tests to test-artifacts branch'
+inputs:
+  github_token:
+    description: "GitHub API token"
+    required: true
+  github_repository:
+    description: "The GitHub repository name"
+    required: false
+  github_run_id:
+    description: "The GitHub Actions run ID"
+    required: false
+  artefacts_directory:
+    description: "The artefacts directory path"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Upload artefact files to test-artifacts branch
+      shell: bash
+      run: |
+        # Configure Git for automated commits
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "GitHub Actions Bot"
+        git remote set-url origin https://x-access-token:${{ inputs.github_token }}@github.com/${{ inputs.github_repository }}
+
+        # Checkout or create test-artifacts branch
+        if git ls-remote --exit-code origin test-artifacts; then
+          git fetch origin test-artifacts
+          git checkout test-artifacts
+        else
+          git checkout -b test-artifacts
+        fi
+
+        # Create run-specific directory
+        mkdir -p run-${{ inputs.github_run_id }}
+
+        # Use absolute path to artifacts directory
+        ARTIFACTS_DIR="${{ inputs.artefacts_directory }}"
+
+        # Copy screenshots from artifacts directory
+        if [ -d "$ARTIFACTS_DIR" ] && [ "$(ls -A $ARTIFACTS_DIR/*.png 2>/dev/null)" ]; then
+          cp $ARTIFACTS_DIR/*.png run-${{ inputs.github_run_id }}/
+          echo "✅ Copied $(ls $ARTIFACTS_DIR/*.png 2>/dev/null | wc -l) screenshots"
+        else
+          echo "⚠️ No screenshots found in $ARTIFACTS_DIR"
+          echo "Directory contents:"
+          ls -lh $ARTIFACTS_DIR 2>/dev/null || echo "Directory does not exist"
+        fi
+
+        # Copy logs from artifacts directory
+        if [ -d "$ARTIFACTS_DIR" ] && [ "$(ls -A $ARTIFACTS_DIR/*.log 2>/dev/null)" ]; then
+          cp $ARTIFACTS_DIR/*.log run-${{ inputs.github_run_id }}/
+          echo "✅ Copied $(ls $ARTIFACTS_DIR/*.log 2>/dev/null | wc -l) logs"
+        else
+          echo "⚠️ No logs found in $ARTIFACTS_DIR"
+          echo "Directory contents:"
+          ls -lh $ARTIFACTS_DIR 2>/dev/null || echo "Directory does not exist"
+        fi
+
+        # Debug: Verify files before commit
+        echo "Files to commit:"
+        ls -lh run-${{ inputs.github_run_id }}/
+
+        # Stage run-specific directory
+        git add -f run-${{ inputs.github_run_id }}
+
+        # Commit and push artifacts
+        if git diff --cached --quiet; then
+          echo "⚠️ No changes to commit"
+        else
+          git commit -m "Add artefacts for run ${{ inputs.github_run_id }}"
+          git push -f origin test-artifacts
+          echo "✅ Artefacts pushed successfully"
+        fi
