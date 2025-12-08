@@ -14,20 +14,15 @@ inputs:
   name:
     description: 'Name of the test run. You can provide the marker, environment and type of test run.'
     required: true
+  test_directory:
+    description: 'Path to the test directory'
+    required: true
   results:
     description: 'Path to the results file'
     required: true
   testmo_token:
     description: "Testmo API token"
     required: true
-  testmo_fields:
-    description: 'JSON string of dynamic fields to add'
-    required: false
-    default: '[]'  # Default to an empty array
-  testmo_links:
-    description: 'JSON string of dynamic links to add'
-    required: false
-    default: '[]'  # Default to an empty array
   github_workspace:
     description: 'The GitHub workspace directory'
     required: true
@@ -43,6 +38,7 @@ inputs:
   marker:
     description: 'The marker for the test run'
     required: true
+    default: 'regression'
   parallel_workers:
     description: 'Number of parallel workers'
     required: false
@@ -50,7 +46,7 @@ inputs:
   reruns:
     description: 'Number of reruns for failed tests'
     required: false
-    default: '2'
+    default: '0'
 
 runs:
   using: "composite"
@@ -79,7 +75,7 @@ runs:
         echo "Run ID: $RUN_ID"
         
         # Execute pytest with the selected marker and environment
-        echo "Execute pytest"
+        echo "${{ inputs.test_directory }}"
         set +e
         cd bdd_tests/step_defs
         poetry run pytest -m "${{ inputs.marker }}" \

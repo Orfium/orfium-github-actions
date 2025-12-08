@@ -10,21 +10,25 @@ inputs:
   github_run_id:
     description: "The GitHub Actions run ID"
     required: false
-  artefacts_directory:
-    description: "The artefacts directory path"
+  artifacts_directory:
+    description: "The artifacts directory path"
     required: true
-  retention_days:
-    description: "Delete run-* folders older than N days (0 to keep only current run)"
+  delete_old_test_artifacts:
+    description: "Delete all older run-* folders containing test artifacts, keeping only the current run"
+#    description: "Delete run-* folders older than N days (0 to keep only current run)"
     required: false
     default: '7'
 
 runs:
   using: "composite"
   steps:
-    - name: Upload artefact files to test-artifacts branch
+    - name: Upload artifact files to test-artifacts branch
       shell: bash
       run: |
         set -e
+
+        # Remove files that may block branch checkout
+        rm -f playwright/.auth/storage_state.json testmo-resources.json
 
         # Configure Git for automated commits
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -43,7 +47,7 @@ runs:
         mkdir -p "$CURRENT_RUN_DIR"
 
         # Optional cleanup: keep only current run or prune by age
-        RETENTION_DAYS="${{ inputs.retention_days }}"
+        RETENTION_DAYS="${{ inputs.delete_old_test_artifacts == 'true' && '0' || '7' }}"
         echo "Retention policy: $RETENTION_DAYS days (0 = keep only current run)"
         if [ "$RETENTION_DAYS" = "0" ]; then
           echo "Removing all previous run-* folders except $CURRENT_RUN_DIR"
@@ -58,7 +62,7 @@ runs:
         fi
 
         # Use absolute path to artifacts directory
-        ARTIFACTS_DIR="${{ inputs.artefacts_directory }}"
+        ARTIFACTS_DIR="${{ inputs.artifacts_directory }}"
 
         # Copy screenshots
         if [ -d "$ARTIFACTS_DIR" ] && ls -A "$ARTIFACTS_DIR"/*.png >/dev/null 2>&1; then
@@ -88,5 +92,5 @@ runs:
         else
           git commit -m "Artifacts for run ${{ inputs.github_run_id }}; pruned old runs (retention $RETENTION_DAYS days)"
           git push -f origin test-artifacts
-          echo "✅ Artefacts pushed successfully"
+          echo "✅ Artifacts pushed successfully"
         fi
