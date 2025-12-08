@@ -13,6 +13,10 @@ inputs:
   artefacts_directory:
     description: "The artefacts directory path"
     required: true
+  retention_days:
+    description: "Delete run-* folders older than N days (0 to keep only current run)"
+    required: false
+    default: '7'
 
 runs:
   using: "composite"
@@ -20,6 +24,8 @@ runs:
     - name: Upload artefact files to test-artifacts branch
       shell: bash
       run: |
+        set -e
+
         # Configure Git for automated commits
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git config --global user.name "GitHub Actions Bot"
@@ -33,44 +39,54 @@ runs:
           git checkout -b test-artifacts
         fi
 
-        # Create run-specific directory
-        mkdir -p run-${{ inputs.github_run_id }}
+        CURRENT_RUN_DIR="run-${{ inputs.github_run_id }}"
+        mkdir -p "$CURRENT_RUN_DIR"
+
+        # Optional cleanup: keep only current run or prune by age
+        RETENTION_DAYS="${{ inputs.retention_days }}"
+        echo "Retention policy: $RETENTION_DAYS days (0 = keep only current run)"
+        if [ "$RETENTION_DAYS" = "0" ]; then
+          echo "Removing all previous run-* folders except $CURRENT_RUN_DIR"
+          for d in run-*; do
+            [ "$d" = "$CURRENT_RUN_DIR" ] && continue
+            [ -d "$d" ] && rm -rf "$d" && echo "Deleted $d"
+          done
+        else
+          echo "Pruning run-* folders older than $RETENTION_DAYS days"
+          # Find run-* directories older than RETENTION_DAYS and delete them
+          find . -maxdepth 1 -type d -name 'run-*' -not -path "./$CURRENT_RUN_DIR" -mtime +"$RETENTION_DAYS" -print -exec rm -rf {} \;
+        fi
 
         # Use absolute path to artifacts directory
         ARTIFACTS_DIR="${{ inputs.artefacts_directory }}"
 
-        # Copy screenshots from artifacts directory
-        if [ -d "$ARTIFACTS_DIR" ] && [ "$(ls -A $ARTIFACTS_DIR/*.png 2>/dev/null)" ]; then
-          cp $ARTIFACTS_DIR/*.png run-${{ inputs.github_run_id }}/
-          echo "✅ Copied $(ls $ARTIFACTS_DIR/*.png 2>/dev/null | wc -l) screenshots"
+        # Copy screenshots
+        if [ -d "$ARTIFACTS_DIR" ] && ls -A "$ARTIFACTS_DIR"/*.png >/dev/null 2>&1; then
+          cp "$ARTIFACTS_DIR"/*.png "$CURRENT_RUN_DIR"/
+          echo "✅ Copied $(ls "$ARTIFACTS_DIR"/*.png 2>/dev/null | wc -l) screenshots"
         else
           echo "⚠️ No screenshots found in $ARTIFACTS_DIR"
-          echo "Directory contents:"
-          ls -lh $ARTIFACTS_DIR 2>/dev/null || echo "Directory does not exist"
+          ls -lh "$ARTIFACTS_DIR" 2>/dev/null || echo "Directory does not exist"
         fi
 
-        # Copy logs from artifacts directory
-        if [ -d "$ARTIFACTS_DIR" ] && [ "$(ls -A $ARTIFACTS_DIR/*.log 2>/dev/null)" ]; then
-          cp $ARTIFACTS_DIR/*.log run-${{ inputs.github_run_id }}/
-          echo "✅ Copied $(ls $ARTIFACTS_DIR/*.log 2>/dev/null | wc -l) logs"
+        # Copy logs
+        if [ -d "$ARTIFACTS_DIR" ] && ls -A "$ARTIFACTS_DIR"/*.log >/dev/null 2>&1; then
+          cp "$ARTIFACTS_DIR"/*.log "$CURRENT_RUN_DIR"/
+          echo "✅ Copied $(ls "$ARTIFACTS_DIR"/*.log 2>/dev/null | wc -l) logs"
         else
           echo "⚠️ No logs found in $ARTIFACTS_DIR"
-          echo "Directory contents:"
-          ls -lh $ARTIFACTS_DIR 2>/dev/null || echo "Directory does not exist"
+          ls -lh "$ARTIFACTS_DIR" 2>/dev/null || echo "Directory does not exist"
         fi
 
-        # Debug: Verify files before commit
         echo "Files to commit:"
-        ls -lh run-${{ inputs.github_run_id }}/
+        ls -lh "$CURRENT_RUN_DIR"/
 
-        # Stage run-specific directory
-        git add -f run-${{ inputs.github_run_id }}
+        git add -A
 
-        # Commit and push artifacts
         if git diff --cached --quiet; then
           echo "⚠️ No changes to commit"
         else
-          git commit -m "Add artefacts for run ${{ inputs.github_run_id }}"
+          git commit -m "Artifacts for run ${{ inputs.github_run_id }}; pruned old runs (retention $RETENTION_DAYS days)"
           git push -f origin test-artifacts
           echo "✅ Artefacts pushed successfully"
         fi
