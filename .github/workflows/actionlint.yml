@@ -28,5 +28,10 @@ jobs:
           # Download the latest actionlint release for this platform
           bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
 
+      - name: Download Actionlint matcher
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/.github/actionlint-matcher.json -o actionlint-matcher.json
+          echo "::add-matcher::actionlint-matcher.json"
+
       - name: Run Actionlint
         run: ./actionlint -color
