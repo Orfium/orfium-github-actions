@@ -1,0 +1,96 @@
+name: 'Upload screenshots and logs to test-artifacts branch'
+description: 'Upload screenshots and log files from failed tests to test-artifacts branch'
+inputs:
+  github_token:
+    description: "GitHub API token"
+    required: true
+  github_repository:
+    description: "The GitHub repository name"
+    required: false
+  github_run_id:
+    description: "The GitHub Actions run ID"
+    required: false
+  artifacts_directory:
+    description: "The artifacts directory path"
+    required: true
+  delete_old_test_artifacts:
+    description: "Delete all older run-* folders containing test artifacts, keeping only the current run"
+#    description: "Delete run-* folders older than N days (0 to keep only current run)"
+    required: false
+    default: '7'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Upload artifact files to test-artifacts branch
+      shell: bash
+      run: |
+        set -e
+
+        # Remove files that may block branch checkout
+        rm -f playwright/.auth/storage_state.json testmo-resources.json
+
+        # Configure Git for automated commits
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "GitHub Actions Bot"
+        git remote set-url origin https://x-access-token:${{ inputs.github_token }}@github.com/${{ inputs.github_repository }}
+
+        # Checkout or create test-artifacts branch
+        if git ls-remote --exit-code origin test-artifacts; then
+          git fetch origin test-artifacts
+          git checkout test-artifacts
+        else
+          git checkout -b test-artifacts
+        fi
+
+        CURRENT_RUN_DIR="run-${{ inputs.github_run_id }}"
+        mkdir -p "$CURRENT_RUN_DIR"
+
+        # Optional cleanup: keep only current run or prune by age
+        RETENTION_DAYS="${{ inputs.delete_old_test_artifacts == 'true' && '0' || '7' }}"
+        echo "Retention policy: $RETENTION_DAYS days (0 = keep only current run)"
+        if [ "$RETENTION_DAYS" = "0" ]; then
+          echo "Removing all previous run-* folders except $CURRENT_RUN_DIR"
+          for d in run-*; do
+            [ "$d" = "$CURRENT_RUN_DIR" ] && continue
+            [ -d "$d" ] && rm -rf "$d" && echo "Deleted $d"
+          done
+        else
+          echo "Pruning run-* folders older than $RETENTION_DAYS days"
+          # Find run-* directories older than RETENTION_DAYS and delete them
+          find . -maxdepth 1 -type d -name 'run-*' -not -path "./$CURRENT_RUN_DIR" -mtime +"$RETENTION_DAYS" -print -exec rm -rf {} \;
+        fi
+
+        # Use absolute path to artifacts directory
+        ARTIFACTS_DIR="${{ inputs.artifacts_directory }}"
+
+        # Copy screenshots
+        if [ -d "$ARTIFACTS_DIR" ] && ls -A "$ARTIFACTS_DIR"/*.png >/dev/null 2>&1; then
+          cp "$ARTIFACTS_DIR"/*.png "$CURRENT_RUN_DIR"/
+          echo "✅ Copied $(ls "$ARTIFACTS_DIR"/*.png 2>/dev/null | wc -l) screenshots"
+        else
+          echo "⚠️ No screenshots found in $ARTIFACTS_DIR"
+          ls -lh "$ARTIFACTS_DIR" 2>/dev/null || echo "Directory does not exist"
+        fi
+
+        # Copy logs
+        if [ -d "$ARTIFACTS_DIR" ] && ls -A "$ARTIFACTS_DIR"/*.log >/dev/null 2>&1; then
+          cp "$ARTIFACTS_DIR"/*.log "$CURRENT_RUN_DIR"/
+          echo "✅ Copied $(ls "$ARTIFACTS_DIR"/*.log 2>/dev/null | wc -l) logs"
+        else
+          echo "⚠️ No logs found in $ARTIFACTS_DIR"
+          ls -lh "$ARTIFACTS_DIR" 2>/dev/null || echo "Directory does not exist"
+        fi
+
+        echo "Files to commit:"
+        ls -lh "$CURRENT_RUN_DIR"/
+
+        git add -A
+
+        if git diff --cached --quiet; then
+          echo "⚠️ No changes to commit"
+        else
+          git commit -m "Artifacts for run ${{ inputs.github_run_id }}; pruned old runs (retention $RETENTION_DAYS days)"
+          git push -f origin test-artifacts
+          echo "✅ Artifacts pushed successfully"
+        fi
