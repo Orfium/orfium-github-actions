@@ -18,23 +18,15 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          export ACTIONLINT_VERSION="1.6.23"
-
           # Shellcheck (for bash "run:" steps)
-          # TODO: find a better way to install shellcheck so that we can get a more recent version
           sudo apt install shellcheck=0.8.0-2
+
 
           # Pyflakes (for python "run:" steps)
           pip install --upgrade pip==23.0 pyflakes==3.0.1
 
-          # NOTE: Consider adding problem matchers
-          # https://github.com/rhysd/actionlint/blob/main/docs/usage.md#problem-matchers
-          # wget "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/.github/actionlint-matcher.json"
-          # echo "::add-matcher::actionlint-matcher.json"
-
-          # Taken from here https://github.com/rhysd/actionlint/blob/main/docs/install.md#download-script
-          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) "$ACTIONLINT_VERSION"
+          # Download the latest actionlint release for this platform
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
 
       - name: Run Actionlint
-        run: |
-          ./actionlint -color
+        run: ./actionlint -color
