@@ -202,7 +202,7 @@ jobs:
           """)
 
       - name: Retrieve Logs
-        if: ${{ inputs.wait_for_completion }} == true
+        if: ${{ inputs.wait_for_completion == true }}
         env:
           CHECK_INTERVAL: ${{ inputs.check_interval }}
           DBT_SERVICE_AIRFLOW_USERNAME: ${{ secrets.DBT_SERVICE_AIRFLOW_USERNAME }}
