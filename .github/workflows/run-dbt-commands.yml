@@ -34,6 +34,11 @@ on:
         required: false
         type: number
         default: 3600
+      req_timeout:
+        description: 'Request timeout in seconds for each API call'
+        required: false
+        type: number
+        default: 60
       check_interval:
         description: 'Polling interval in seconds'
         required: false
@@ -88,6 +93,11 @@ jobs:
             echo "Timeout value ${{ inputs.timeout }} exceeds maximum allowed (3600). Capping at 3600 seconds."
             TIMEOUT=3600
           fi
+          REQ_TIMEOUT="${{ inputs.req_timeout }}"
+          if [ "$REQ_TIMEOUT" -gt 360 ]; then
+            echo "Request Timeout value ${{ inputs.req_timeout }} exceeds maximum allowed (360). Capping at 360 seconds."
+            REQ_TIMEOUT=360
+          fi
           echo "TIMEOUT=$TIMEOUT" >> "$GITHUB_ENV"
 
       - name: Set up Python
@@ -119,6 +129,7 @@ jobs:
           GIT_REF = os.environ.get('GIT_REF')
           DBT_STEPS = os.environ.get('DBT_STEPS')
           SNOWFLAKE_CONN_ID = os.environ.get('SNOWFLAKE_CONN_ID')
+          REQ_TIMEOUT = int(os.environ.get('REQ_TIMEOUT'))
           DBT_ORFIUM_HEADERS_DICT = json.loads(os.environ.get('DBT_ORFIUM_HEADERS'))
           DBT_SERVICE_AIRFLOW_USERNAME = os.environ.get('DBT_SERVICE_AIRFLOW_USERNAME')
           DBT_SERVICE_AIRFLOW_PASSWORD = os.environ.get('DBT_SERVICE_AIRFLOW_PASSWORD')
@@ -126,7 +137,7 @@ jobs:
           auth = (DBT_SERVICE_AIRFLOW_USERNAME, DBT_SERVICE_AIRFLOW_PASSWORD)
 
 
-          def post_with_retry(url, auth=None, data=None, headers=None, max_retries=3, timeout=5):
+          def post_with_retry(url, auth=None, data=None, headers=None, max_retries=3, timeout=REQ_TIMEOUT):
             """
             Send a POST request with automatic retries (with exponential backoff) for status codes in `{status_forcelist}`.
 
@@ -223,6 +234,7 @@ jobs:
           AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT = os.environ.get('AIRFLOW_API_TRIGGER_DAG_RUN_ENDPOINT')
           DBT_ORFIUM_HEADERS_DICT = json.loads(os.environ.get('DBT_ORFIUM_HEADERS'))
           TIMEOUT = float(os.environ.get('TIMEOUT'))  # using the sanitised value instead of the direct input (which might exceed 3600)
+          REQ_TIMEOUT = int(os.environ.get('REQ_TIMEOUT'))
           CHECK_INTERVAL = float(os.environ.get('CHECK_INTERVAL'))
           DBT_SERVICE_AIRFLOW_USERNAME = os.environ.get('DBT_SERVICE_AIRFLOW_USERNAME')
           DBT_SERVICE_AIRFLOW_PASSWORD = os.environ.get('DBT_SERVICE_AIRFLOW_PASSWORD')
@@ -240,7 +252,7 @@ jobs:
           auth = (DBT_SERVICE_AIRFLOW_USERNAME, DBT_SERVICE_AIRFLOW_PASSWORD)
 
 
-          def get_with_retry(url, auth=None, params=None, headers=None, max_retries=3, timeout=5):
+          def get_with_retry(url, auth=None, params=None, headers=None, max_retries=3, timeout=REQ_TIMEOUT):
             """
             Send a GET request with automatic retries (with exponential backoff) for status codes in `{status_forcelist}`.
 
