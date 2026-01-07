@@ -63,7 +63,7 @@ jobs:
             --output text)
           TASK_EXEC_ARN=$(aws datasync start-task-execution --task-arn "$DATASYNC_TASK_ARN" --query TaskExecutionArn --output text)
           while true; do
-            STATUS=$(aws datasync describe-task-execution --task-execution-arn $TASK_EXEC_ARN --query Status --output text)
+            STATUS=$(aws datasync describe-task-execution --task-execution-arn "$TASK_EXEC_ARN" --query Status --output text)
             echo "Current status: $STATUS"
             if [[ "$STATUS" == "SUCCESS" || "$STATUS" == "ERROR" || "$STATUS" == "STOPPED" ]]; then
               break
