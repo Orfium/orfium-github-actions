@@ -75,11 +75,28 @@ jobs:
             --query 'Stacks[0].Outputs[?OutputKey==`DataSyncTaskArn`].OutputValue' \
             --output text)
           TASK_EXEC_ARN=$(aws datasync start-task-execution --task-arn "$DATASYNC_TASK_ARN" --query TaskExecutionArn --output text)
-          while true; do
+
+          MAX_RETRIES=30
+          SLEEP_INTERVAL=20
+          RETRY_COUNT=0
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             STATUS=$(aws datasync describe-task-execution --task-execution-arn "$TASK_EXEC_ARN" --query Status --output text)
             echo "Current status: $STATUS"
-            if [[ "$STATUS" == "SUCCESS" || "$STATUS" == "ERROR" || "$STATUS" == "STOPPED" ]]; then
+
+            if [[ "$STATUS" == "SUCCESS" ]]; then
+              echo "DataSync completed successfully"
               break
+            elif [[ "$STATUS" == "ERROR" || "$STATUS" == "STOPPED" ]]; then
+              echo "DataSync failed with status: $STATUS"
+              exit 1
             fi
-            sleep 20
+
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "Retrying after $SLEEP_INTERVAL seconds ($RETRY_COUNT/$MAX_RETRIES)"
+            sleep $SLEEP_INTERVAL
           done
+
+          if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            echo "DataSync did not complete within the expected time."
+            exit 1
+          fi
