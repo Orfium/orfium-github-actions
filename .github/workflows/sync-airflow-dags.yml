@@ -15,6 +15,12 @@ on:
         required: false
         type: string
         default: airflow_dags
+      airflow_dags_artifact:
+        required: false
+        type: string
+        description: "Name of the artifact containing generated Airflow DAGs"
+        default: ""
+
 jobs:
   sync-dags:
     name: Sync dags to Airflow
@@ -22,6 +28,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download generated dags
+        if: ${{ inputs.airflow_dags_artifact != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.airflow_dags_artifact }}
+          path: ${{ inputs.airflow_dags_folder }}
 
       - name: Set deployment env
         id: set-environment
