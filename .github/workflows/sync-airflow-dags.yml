@@ -15,6 +15,12 @@ on:
         required: false
         type: string
         default: airflow_dags
+      airflow_dags_artifact:
+        required: false
+        type: string
+        description: "Name of the artifact containing generated Airflow DAGs"
+        default: ""
+
 jobs:
   sync-dags:
     name: Sync dags to Airflow
@@ -22,6 +28,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download generated dags
+        if: ${{ inputs.airflow_dags_artifact != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.airflow_dags_artifact }}
+          path: ${{ inputs.airflow_dags_folder }}
 
       - name: Set deployment env
         id: set-environment
@@ -61,4 +74,29 @@ jobs:
             --stack-name "${{ inputs.stack_name }}" \
             --query 'Stacks[0].Outputs[?OutputKey==`DataSyncTaskArn`].OutputValue' \
             --output text)
-          aws datasync start-task-execution --task-arn "$DATASYNC_TASK_ARN"
+          TASK_EXEC_ARN=$(aws datasync start-task-execution --task-arn "$DATASYNC_TASK_ARN" --query TaskExecutionArn --output text)
+
+          MAX_RETRIES=30
+          SLEEP_INTERVAL=20
+          RETRY_COUNT=0
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            STATUS=$(aws datasync describe-task-execution --task-execution-arn "$TASK_EXEC_ARN" --query Status --output text)
+            echo "Current status: $STATUS"
+
+            if [[ "$STATUS" == "SUCCESS" ]]; then
+              echo "DataSync completed successfully"
+              break
+            elif [[ "$STATUS" == "ERROR" || "$STATUS" == "STOPPED" ]]; then
+              echo "DataSync failed with status: $STATUS"
+              exit 1
+            fi
+
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "Retrying after $SLEEP_INTERVAL seconds ($RETRY_COUNT/$MAX_RETRIES)"
+            sleep $SLEEP_INTERVAL
+          done
+
+          if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            echo "DataSync did not complete within the expected time."
+            exit 1
+          fi
