@@ -5,7 +5,7 @@ on:
     inputs:
       python_version:
         description: The Python version with which you want to build and deploy your cdk application. Default is 3.13
-        required: true
+        required: false
         default: '3.13'
         type: string
       environment_id:
