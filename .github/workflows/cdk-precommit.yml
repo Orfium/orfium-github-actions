@@ -1,0 +1,111 @@
+name: Pre-commit
+
+on:
+  workflow_call:
+    inputs:
+      python_version:
+        description: The Python version with which you want to build and deploy your cdk application. Default is 3.13
+        required: true
+        default: '3.13'
+        type: string
+      environment_id:
+        description: The environment id/type of your application e.g. review, integration, prod, etc etc
+        required: true
+        type: string
+      aws-cd-role:
+        description: The AWS CD Role with which you will deploy your application
+        required: true
+        type: string
+      aws-region:
+        description: The AWS Region where you want to deploy your application
+        required: true
+        type: string
+      infra_folder_path:
+        description: The folder path where all your CDK code lives. The default value is infra
+        required: false
+        type: string
+        default: infra
+      infra-stack-name:
+        description: The Infrastructure Stack name. Provide custom name or use the output from the cdk-set-env-vars workflow
+        required: true
+        type: string
+      app-stack-name:
+        description: The Application Stack name. Provide custom name or use the output from the cdk-set-env-vars workflow
+        required: true
+        type: string
+      codeartifact_encrypted_token_dev:
+        description: The encrypted token for the Development CodeArtifact Domain and Repository
+        required: true
+        type: string
+      codeartifact_encrypted_token_prod:
+        description: The encrypted token for the Production CodeArtifact Domain and Repository
+        required: true
+        type: string
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: false
+
+jobs:
+  precommit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Decrypt Codeartifact dev token
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_dev }}" | base64 --decode))
+          echo "::add-mask::$token"
+          {
+          echo "CODEARTIFACT_TOKEN_DEV=$token"
+          echo "UV_INDEX_CODE_ARTIFACT_DEV_USERNAME=aws"
+          echo "UV_INDEX_CODE_ARTIFACT_DEV_PASSWORD=$token"
+          } >> "$GITHUB_ENV"
+
+      - name: Decrypt Codeartifact prod token
+        if: ${{ inputs.codeartifact_encrypted_token_prod != '' }}
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_prod }}" | base64 --decode))
+          echo "::add-mask::$token"
+          {
+            echo "CODEARTIFACT_TOKEN_PROD=$token"
+            echo "UV_INDEX_CODE_ARTIFACT_PROD_USERNAME=aws"
+            echo "UV_INDEX_CODE_ARTIFACT_PROD_PASSWORD=$token"
+          } >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5.1.1
+        with:
+          role-to-assume: ${{ inputs.aws-cd-role }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Install requirements
+        working-directory: ./${{ inputs.infra_folder_path }}
+        run: |
+          npm install -g aws-cdk@2.1107.0
+          pip install -r uv-requirements.txt
+          make install
+
+      - name: Run pre commit
+        working-directory: ./infra
+        run: make pre-commit
+
+      - name: Synth the cdk stacks
+        working-directory: ./${{ inputs.infra_folder_path }}
+        id: synth-stacks
+        run: |
+          set -o allexport
+          source environments/${{ inputs.environment_id }}.env
+          export INFRA_STACK_NAME=${{ inputs.infra-stack-name }}
+          export APPLICATION_STACK_NAME=${{ inputs.app-stack-name }}
+          uv run cdk synth -all -q
+
+      - name: Run cfn-lint against all synthesized stacks
+        working-directory: ./${{ inputs.infra_folder_path }}
+        run: |
+          uv run cfn-lint -I cdk.out/*.template.json

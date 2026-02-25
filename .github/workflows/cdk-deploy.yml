@@ -1,0 +1,116 @@
+name: Deploy CDK Stacks
+
+on:
+  workflow_call:
+    inputs:
+      python_version:
+        description: The Python version with which you want to build and deploy your cdk application. Default is 3.13
+        required: false
+        default: '3.13'
+        type: string
+      environment_id:
+        description: The environment id/type of your application e.g. review, integration, prod, etc etc
+        required: true
+        type: string
+      aws-cd-role:
+        description: The AWS CD Role with which you will deploy your application
+        required: true
+        type: string
+      aws-region:
+        description: The AWS Region where you want to deploy your application
+        required: true
+        type: string
+      infra_folder_path:
+        description: The folder path where all your CDK code lives. The default value is infra
+        required: false
+        type: string
+        default: infra
+      infra-stack-name:
+        description: The Infrastructure Stack name. Provide custom name or use the output from the cdk-set-env-vars workflow
+        required: true
+        type: string
+      app-stack-name:
+        description: The Application Stack name. Provide custom name or use the output from the cdk-set-env-vars workflow
+        required: true
+        type: string
+      run-migrations:
+        description: Flag to run the migration step. Leave empty or set to False to disable running migrations.
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  synth-and-deploy-stacks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python "${{ inputs.python_version }}"
+        id: python-setup
+        uses: actions/setup-python@v6
+        with:
+          python-version: "${{ inputs.python_version }}"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5.1.1
+        with:
+          role-to-assume: ${{ inputs.aws-cd-role }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Install requirements
+        working-directory: ./${{ inputs.infra_folder_path }}
+        run: |
+          npm install -g aws-cdk@2.1107.0
+          pip install -r uv-requirements.txt
+          make install
+
+      - name: Check infra stack diffs
+        working-directory: ./${{ inputs.infra_folder_path }}
+        id: check-infra-stack-diffs
+        run: |
+          set -o allexport
+          source environments/${{ inputs.environment_id }}.env
+          export INFRA_STACK_NAME=${{ inputs.infra-stack-name }}
+          export APPLICATION_STACK_NAME=${{ inputs.app-stack-name }}
+          CREATE_UPDATE_INFRA=0
+          if aws cloudformation describe-stacks --stack-name $INFRA_STACK_NAME; then
+            echo "Infrastructure stack $INFRA_STACK_NAME exists. Checking for differences."
+            if uv run cdk diff --fail $INFRA_STACK_NAME; then
+              echo "Infrastructure stack $INFRA_STACK_NAME does not have updates. Proceeding with updating just the $APPLICATION_STACK_NAME stack."
+            else
+              echo "Infrastructure stack $INFRA_STACK_NAME has updates. Deploying the updates."
+              CREATE_UPDATE_INFRA=1
+            fi
+          else
+            echo "Infrastructure stack $INFRA_STACK_NAME doesn't exist. Proceeding with its creation."
+            CREATE_UPDATE_INFRA=1
+          fi
+          echo "CREATE_UPDATE_INFRA=$CREATE_UPDATE_INFRA" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy the ${{ inputs.infra-stack-name }} stack
+        if: ${{ steps.check-infra-stack-diffs.outputs.CREATE_UPDATE_INFRA == 1 }}
+        working-directory: ./${{ inputs.infra_folder_path }}
+        id: deploy-infra-stack
+        run: |
+          set -o allexport
+          source environments/${{ inputs.environment_id }}.env
+          export INFRA_STACK_NAME=${{ inputs.infra-stack-name }}
+          export APPLICATION_STACK_NAME=${{ inputs.app-stack-name }}
+          uv run cdk deploy --require-approval never --exclusively $INFRA_STACK_NAME
+
+      - name: Run Migrations
+        if: ${{ inputs.run-migrations == true }}
+        id: run-migrations
+        run: |
+          echo "Running Migrations from the root folder path with the code on the run-command reusable workflow"
+
+      - name: Deploy the ${{ inputs.app-stack-name }} stack
+        working-directory: ./${{ inputs.infra_folder_path }}
+        id: deploy-app-stack
+        run: |
+          set -o allexport
+          source environments/${{ inputs.environment_id }}.env
+          export INFRA_STACK_NAME=${{ inputs.infra-stack-name }}
+          export APPLICATION_STACK_NAME=${{ inputs.app-stack-name }}
+          uv run cdk deploy --require-approval never --exclusively $APPLICATION_STACK_NAME

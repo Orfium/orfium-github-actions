@@ -1,0 +1,63 @@
+name: Set environment variables and stack names
+
+on:
+  workflow_call:
+    inputs:
+      environment_id:
+        description: The environment id/type of your application e.g. review, integration, prod, etc etc
+        required: true
+        type: string
+      environment_suffix:
+        description: The environment suffix for your stacks/resources. For Production leave the field empty. For review apps use the Pull Request number provided from the GitHub Context
+        required: false
+        type: string
+    outputs:
+      aws-region:
+        value: ${{ jobs.set-environment-variables.outputs.aws-region }}
+      aws-account-id:
+        value: ${{ jobs.set-environment-variables.outputs.aws-account-id }}
+      aws-account-name:
+        value: ${{ jobs.set-environment-variables.outputs.aws-account-name }}
+      aws-cd-role:
+        value: ${{ jobs.set-environment-variables.outputs.aws-cd-role }}
+      ecr-registry:
+        value: ${{ jobs.set-environment-variables.outputs.ecr-registry }}
+      product-name:
+        value: ${{ jobs.set-environment-variables.outputs.product-name }}
+      infra-stack-name:
+        value: ${{ jobs.set-environment-variables.outputs.infra-stack-name }}
+      app-stack-name:
+        value: ${{ jobs.set-environment-variables.outputs.app-stack-name }}
+
+jobs:
+  set-environment-variables:
+    runs-on: ubuntu-latest
+    outputs:
+      aws-region: ${{ steps.set-environment-variables.outputs.AWS_REGION }}
+      aws-account-id: ${{ steps.set-environment-variables.outputs.AWS_ACCOUNT_ID }}
+      aws-account-name: ${{ steps.set-environment-variables.outputs.AWS_ACCOUNT_NAME }}
+      aws-cd-role: ${{ steps.set-environment-variables.outputs.AWS_CD_ROLE }}
+      ecr-registry: ${{ steps.set-environment-variables.outputs.ECR_REGISTRY }}
+      product-name: ${{ steps.set-environment-variables.outputs.ProductName }}
+      infra-stack-name: ${{ steps.construct-stack-name.outputs.INFRA_STACK_NAME }}
+      app-stack-name: ${{ steps.construct-stack-name.outputs.APPLICATION_STACK_NAME }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set environment variables
+        id: set-environment-variables
+        run: |
+          cat infra/environments/${{ inputs.environment_id }}.env >> "$GITHUB_OUTPUT"
+
+      - name: Construct the Stack Name
+        id: construct-stack-name
+        run: |
+          INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
+          if [[ -z $INPUT_ENV_SUFFIX ]]; then
+            echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.ProductName }}-infra" >> "$GITHUB_OUTPUT"
+            echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.ProductName }}-app" >> "$GITHUB_OUTPUT"
+          else
+            echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.ProductName }}-${{ inputs.environment_suffix }}-infra" >> "$GITHUB_OUTPUT"
+            echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.ProductName }}-${{ inputs.environment_suffix }}-app" >> "$GITHUB_OUTPUT"
+          fi
