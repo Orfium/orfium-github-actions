@@ -92,7 +92,7 @@ jobs:
           make install
 
       - name: Run pre commit
-        working-directory: ./infra
+        working-directory: ./${{ inputs.infra_folder_path }}
         run: make pre-commit
 
       - name: Synth the cdk stacks
