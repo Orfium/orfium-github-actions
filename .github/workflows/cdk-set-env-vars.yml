@@ -38,7 +38,7 @@ jobs:
       aws-account-name: ${{ steps.set-environment-variables.outputs.AWS_ACCOUNT_NAME }}
       aws-cd-role: ${{ steps.set-environment-variables.outputs.AWS_CD_ROLE }}
       ecr-registry: ${{ steps.set-environment-variables.outputs.ECR_REGISTRY }}
-      product-name: ${{ steps.set-environment-variables.outputs.ProductName }}
+      product-name: ${{ steps.set-environment-variables.outputs.PRODUCT_NAME }}
       infra-stack-name: ${{ steps.construct-stack-name.outputs.INFRA_STACK_NAME }}
       app-stack-name: ${{ steps.construct-stack-name.outputs.APPLICATION_STACK_NAME }}
     steps:
@@ -55,9 +55,9 @@ jobs:
         run: |
           INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
           if [[ -z $INPUT_ENV_SUFFIX ]]; then
-            echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.ProductName }}-infra" >> "$GITHUB_OUTPUT"
-            echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.ProductName }}-app" >> "$GITHUB_OUTPUT"
+            echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_NAME }}-infra" >> "$GITHUB_OUTPUT"
+            echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_NAME }}-app" >> "$GITHUB_OUTPUT"
           else
-            echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.ProductName }}-${{ inputs.environment_suffix }}-infra" >> "$GITHUB_OUTPUT"
-            echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.ProductName }}-${{ inputs.environment_suffix }}-app" >> "$GITHUB_OUTPUT"
+            echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_NAME }}-${{ inputs.environment_suffix }}-infra" >> "$GITHUB_OUTPUT"
+            echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_NAME }}-${{ inputs.environment_suffix }}-app" >> "$GITHUB_OUTPUT"
           fi
