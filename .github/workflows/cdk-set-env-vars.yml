@@ -61,6 +61,7 @@ jobs:
       - name: Construct the Product Name and Stack Name
         id: construct-names
         run: |
+          # shellcheck disable=SC2129
           MULTI_STACK_DEPLOYMENT=${{ inputs.multi-stack-deployment }}
           INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
           if [[ $MULTI_STACK_DEPLOYMENT = true ]]; then
