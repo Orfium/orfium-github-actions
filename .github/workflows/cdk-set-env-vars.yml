@@ -11,6 +11,11 @@ on:
         description: The environment suffix for your stacks/resources. For Production leave the field empty. For review apps use the Pull Request number provided from the GitHub Context
         required: false
         type: string
+      multi-stack-deployment:
+        description: This flag selects between deployment with 2 Stacks ( Infra + Application ) which is the default or a Single unified stack. Single Stack deployment is better utilized for non-product stacks/services
+        required: false
+        default: true
+        type: string
     outputs:
       aws-region:
         value: ${{ jobs.set-environment-variables.outputs.aws-region }}
@@ -24,6 +29,8 @@ on:
         value: ${{ jobs.set-environment-variables.outputs.ecr-registry }}
       product-name:
         value: ${{ jobs.set-environment-variables.outputs.product-name }}
+      single-stack-name:
+        value: ${{ jobs.set-environment-variables.outputs.single-stack-name }}
       infra-stack-name:
         value: ${{ jobs.set-environment-variables.outputs.infra-stack-name }}
       app-stack-name:
@@ -38,9 +45,10 @@ jobs:
       aws-account-name: ${{ steps.set-environment-variables.outputs.AWS_ACCOUNT_NAME }}
       aws-cd-role: ${{ steps.set-environment-variables.outputs.AWS_CD_ROLE }}
       ecr-registry: ${{ steps.set-environment-variables.outputs.ECR_REGISTRY }}
-      product-name: ${{ steps.set-environment-variables.outputs.PRODUCT_NAME }}
-      infra-stack-name: ${{ steps.construct-stack-name.outputs.INFRA_STACK_NAME }}
-      app-stack-name: ${{ steps.construct-stack-name.outputs.APPLICATION_STACK_NAME }}
+      product-name: ${{ steps.construct-names.outputs.PRODUCT_NAME }}
+      single-stack-name: ${{ steps.construct-names.outputs.SINGLE_STACK_NAME }}
+      infra-stack-name: ${{ steps.construct-names.outputs.INFRA_STACK_NAME }}
+      app-stack-name: ${{ steps.construct-names.outputs.APPLICATION_STACK_NAME }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -50,14 +58,27 @@ jobs:
         run: |
           cat infra/environments/${{ inputs.environment_id }}.env >> "$GITHUB_OUTPUT"
 
-      - name: Construct the Stack Name
-        id: construct-stack-name
+      - name: Construct the Product Name and Stack Name
+        id: construct-names
         run: |
+          MULTI_STACK_DEPLOYMENT=${{ inputs.multi-stack-deployment }}
           INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
-          if [[ -z $INPUT_ENV_SUFFIX ]]; then
-            echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_NAME }}-infra" >> "$GITHUB_OUTPUT"
-            echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_NAME }}-app" >> "$GITHUB_OUTPUT"
+          if [[ $MULTI_STACK_DEPLOYMENT = true ]]; then
+            if [[ -z $INPUT_ENV_SUFFIX ]]; then
+              echo "PRODUCT_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}" >> "$GITHUB_OUTPUT"
+              echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-infra" >> "$GITHUB_OUTPUT"
+              echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-app" >> "$GITHUB_OUTPUT"
+            else
+              echo "PRODUCT_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
+              echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}-infra" >> "$GITHUB_OUTPUT"
+              echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}-app" >> "$GITHUB_OUTPUT"
+            fi
           else
-            echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_NAME }}-${{ inputs.environment_suffix }}-infra" >> "$GITHUB_OUTPUT"
-            echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_NAME }}-${{ inputs.environment_suffix }}-app" >> "$GITHUB_OUTPUT"
+            if [[ -z $INPUT_ENV_SUFFIX ]]; then
+              echo "PRODUCT_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}" >> "$GITHUB_OUTPUT"
+              echo "SINGLE_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}" >> "$GITHUB_OUTPUT"
+            else
+              echo "PRODUCT_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
+              echo "SINGLE_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
+            fi
           fi
