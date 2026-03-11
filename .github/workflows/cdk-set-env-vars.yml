@@ -61,24 +61,27 @@ jobs:
       - name: Construct the Product Name and Stack Name
         id: construct-names
         run: |
-          # shellcheck disable=SC2129
           MULTI_STACK_DEPLOYMENT=${{ inputs.multi-stack-deployment }}
           INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
           if [[ $MULTI_STACK_DEPLOYMENT = true ]]; then
             if [[ -z $INPUT_ENV_SUFFIX ]]; then
+              # shellcheck disable=SC2129
               echo "PRODUCT_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}" >> "$GITHUB_OUTPUT"
               echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-infra" >> "$GITHUB_OUTPUT"
               echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-app" >> "$GITHUB_OUTPUT"
             else
+              # shellcheck disable=SC2129
               echo "PRODUCT_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
               echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}-infra" >> "$GITHUB_OUTPUT"
               echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}-app" >> "$GITHUB_OUTPUT"
             fi
           else
             if [[ -z $INPUT_ENV_SUFFIX ]]; then
+              # shellcheck disable=SC2129
               echo "PRODUCT_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}" >> "$GITHUB_OUTPUT"
               echo "SINGLE_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}" >> "$GITHUB_OUTPUT"
             else
+              # shellcheck disable=SC2129
               echo "PRODUCT_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
               echo "SINGLE_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
             fi
