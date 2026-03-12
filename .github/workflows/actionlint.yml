@@ -5,25 +5,24 @@ on:
 
 jobs:
   actionlint:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Setting up python for Pyflakes integration
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.11.1"
+          python-version: "3.13"
 
       - name: Install Dependencies
         run: |
           # Shellcheck (for bash "run:" steps)
-          sudo apt install shellcheck=0.8.0-2
-
+          sudo apt install shellcheck=0.9.0-1
 
           # Pyflakes (for python "run:" steps)
-          pip install --upgrade pip==23.0 pyflakes==3.0.1
+          pip install --upgrade pip==26.0 pyflakes==3.4.0
 
           # Download the latest actionlint release for this platform
           bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
