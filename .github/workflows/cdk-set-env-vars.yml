@@ -1,0 +1,88 @@
+name: Set environment variables and stack names
+
+on:
+  workflow_call:
+    inputs:
+      environment_id:
+        description: The environment id/type of your application e.g. review, integration, prod, etc etc
+        required: true
+        type: string
+      environment_suffix:
+        description: The environment suffix for your stacks/resources. For Production leave the field empty. For review apps use the Pull Request number provided from the GitHub Context
+        required: false
+        type: string
+      multi-stack-deployment:
+        description: This flag selects between deployment with 2 Stacks ( Infra + Application ) which is the default or a Single unified stack. Single Stack deployment is better ( but not exclusively ) utilized for non-product stacks/services
+        required: false
+        default: true
+        type: string
+    outputs:
+      aws-region:
+        value: ${{ jobs.set-environment-variables.outputs.aws-region }}
+      aws-account-id:
+        value: ${{ jobs.set-environment-variables.outputs.aws-account-id }}
+      aws-account-name:
+        value: ${{ jobs.set-environment-variables.outputs.aws-account-name }}
+      aws-cd-role:
+        value: ${{ jobs.set-environment-variables.outputs.aws-cd-role }}
+      ecr-registry:
+        value: ${{ jobs.set-environment-variables.outputs.ecr-registry }}
+      product-name:
+        value: ${{ jobs.set-environment-variables.outputs.product-name }}
+      single-stack-name:
+        value: ${{ jobs.set-environment-variables.outputs.single-stack-name }}
+      infra-stack-name:
+        value: ${{ jobs.set-environment-variables.outputs.infra-stack-name }}
+      app-stack-name:
+        value: ${{ jobs.set-environment-variables.outputs.app-stack-name }}
+
+jobs:
+  set-environment-variables:
+    runs-on: ubuntu-latest
+    outputs:
+      aws-region: ${{ steps.set-environment-variables.outputs.AWS_REGION }}
+      aws-account-id: ${{ steps.set-environment-variables.outputs.AWS_ACCOUNT_ID }}
+      aws-account-name: ${{ steps.set-environment-variables.outputs.AWS_ACCOUNT_NAME }}
+      aws-cd-role: ${{ steps.set-environment-variables.outputs.AWS_CD_ROLE }}
+      ecr-registry: ${{ steps.set-environment-variables.outputs.ECR_REGISTRY }}
+      product-name: ${{ steps.construct-names.outputs.PRODUCT_NAME }}
+      single-stack-name: ${{ steps.construct-names.outputs.SINGLE_STACK_NAME }}
+      infra-stack-name: ${{ steps.construct-names.outputs.INFRA_STACK_NAME }}
+      app-stack-name: ${{ steps.construct-names.outputs.APPLICATION_STACK_NAME }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Set environment variables
+        id: set-environment-variables
+        run: |
+          cat infra/environments/${{ inputs.environment_id }}.env >> "$GITHUB_OUTPUT"
+
+      - name: Construct the Product Name and Stack Name
+        id: construct-names
+        run: |
+          MULTI_STACK_DEPLOYMENT=${{ inputs.multi-stack-deployment }}
+          INPUT_ENV_SUFFIX=${{ inputs.environment_suffix }}
+          if [[ $MULTI_STACK_DEPLOYMENT = true ]]; then
+            if [[ -z $INPUT_ENV_SUFFIX ]]; then
+              # shellcheck disable=SC2129
+              echo "PRODUCT_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}" >> "$GITHUB_OUTPUT"
+              echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-infra" >> "$GITHUB_OUTPUT"
+              echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-app" >> "$GITHUB_OUTPUT"
+            else
+              # shellcheck disable=SC2129
+              echo "PRODUCT_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
+              echo "INFRA_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}-infra" >> "$GITHUB_OUTPUT"
+              echo "APPLICATION_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}-app" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            if [[ -z $INPUT_ENV_SUFFIX ]]; then
+              # shellcheck disable=SC2129
+              echo "PRODUCT_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}" >> "$GITHUB_OUTPUT"
+              echo "SINGLE_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}" >> "$GITHUB_OUTPUT"
+            else
+              # shellcheck disable=SC2129
+              echo "PRODUCT_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
+              echo "SINGLE_STACK_NAME=${{ steps.set-environment-variables.outputs.PRODUCT_CODE }}-${{ inputs.environment_suffix }}" >> "$GITHUB_OUTPUT"
+            fi
+          fi

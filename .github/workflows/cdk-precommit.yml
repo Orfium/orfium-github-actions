@@ -1,0 +1,152 @@
+name: Pre-commit
+
+on:
+  workflow_call:
+    inputs:
+      python_version:
+        description: The Python version with which you want to build and deploy your cdk application. Default is 3.13
+        required: false
+        default: '3.13'
+        type: string
+      environment_id:
+        description: The environment id/type of your application e.g. review, integration, prod, etc etc
+        required: true
+        type: string
+      aws-account-id:
+        description: The AWS Account ID in which you will deploy your application
+        required: true
+        type: string
+      aws-cd-role:
+        description: The AWS CD Role with which you will deploy your application
+        required: true
+        type: string
+      aws-region:
+        description: The AWS Region where you want to deploy your application
+        required: true
+        type: string
+      infra_folder_path:
+        description: The folder path where all your CDK code lives. The default value is infra
+        required: false
+        type: string
+        default: infra
+      product-name:
+        description: This is the combination of Product Code and Environment Suffix. Mainly used to name resources without the moniker 'infra' or 'app'
+        required: true
+        type: string
+      ecr-registry:
+        description: This is the Registry where the Docker Image is deployed. Leave empty if you don't use an ECR Image in your Stack
+        default: ""
+        required: false
+        type: string
+      single-stack-name:
+        description: The Stack name when it's a single-stack deployment. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided but not both.
+        default: ""
+        required: false
+        type: string
+      infra-stack-name:
+        description: The Infrastructure Stack name. Provide custom name or use the output from the cdk-set-env-vars workflow. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided but not both.
+        default: ""
+        required: false
+        type: string
+      app-stack-name:
+        description: The Application Stack name. Provide custom name or use the output from the cdk-set-env-vars workflow. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided but not both.
+        default: ""
+        required: false
+        type: string
+      codeartifact_encrypted_token_dev:
+        description: The encrypted token for the Development CodeArtifact Domain and Repository
+        required: true
+        type: string
+      codeartifact_encrypted_token_prod:
+        description: The encrypted token for the Production CodeArtifact Domain and Repository
+        required: true
+        type: string
+    secrets:
+      GPG_CODEARTIFACT_TOKEN_PASSPHRASE:
+        required: false
+
+jobs:
+  precommit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Setup Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Export all required parameters
+        working-directory: ./${{ inputs.infra_folder_path }}
+        id: export-parameters
+        run: |
+          # shellcheck disable=SC2129
+          # Exporting Parameters from workflow inputs
+          echo "ENVIRONMENT_ID=${{ inputs.environment_id }}" >> "$GITHUB_ENV"
+          echo "AWS_ACCOUNT_ID=${{ inputs.aws-account-id }}" >> "$GITHUB_ENV"
+          echo "AWS_REGION=${{ inputs.aws-region }}" >> "$GITHUB_ENV"
+          echo "ECR_REGISTRY=${{ inputs.ecr-registry }}" >> "$GITHUB_ENV"
+          echo "PRODUCT_NAME=${{ inputs.product-name }}" >> "$GITHUB_ENV"
+          echo "SINGLE_STACK_NAME=${{ inputs.single-stack-name }}" >> "$GITHUB_ENV"
+          echo "INFRA_STACK_NAME=${{ inputs.infra-stack-name }}" >> "$GITHUB_ENV"
+          echo "APPLICATION_STACK_NAME=${{ inputs.app-stack-name }}" >> "$GITHUB_ENV"
+
+      - name: Verify if Stack names are provided correctly
+        id: verify-stack-names
+        run: |
+          if [[ $SINGLE_STACK_NAME = "" ]]; then
+            echo "It is not a single-stack deployment. Checking if infra-stack-name and app-stack-name stack names are provided"
+            if [[ $INFRA_STACK_NAME != "" && $APPLICATION_STACK_NAME != "" ]]; then
+              echo "infra-stack-name and app-stack-name stack names are provided. Everything looks good. Proceeding with a multi-stack deployment"
+            else
+              echo "infra-stack-name and app-stack-name stack names are not provided. Either the single-stack-name or the infra-stack-name & app-stack-name inputs must be provided"
+              exit 1
+            fi
+          else
+            echo "It is a single-stack deployment. Checking if infra-stack-name and app-stack-name stack names are provided"
+            if [[ $INFRA_STACK_NAME != "" || $APPLICATION_STACK_NAME != "" ]]; then
+              echo "infra-stack-name or app-stack-name stack names are provided but they should not be. Either the single-stack-name or the infra-stack-name & app-stack-name inputs must be provided but not both"
+              exit 1
+            else
+              echo "infra-stack-name and app-stack-name stack names are not provided. Everything looks good. Proceeding with a single-stack deployment"
+            fi
+          fi
+
+      - name: Decrypt Codeartifact dev token
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_dev }}" | base64 --decode))
+          echo "::add-mask::$token"
+          {
+          echo "CODEARTIFACT_TOKEN_DEV=$token"
+          echo "UV_INDEX_CODE_ARTIFACT_DEV_USERNAME=aws"
+          echo "UV_INDEX_CODE_ARTIFACT_DEV_PASSWORD=$token"
+          } >> "$GITHUB_ENV"
+
+      - name: Decrypt Codeartifact prod token
+        if: ${{ inputs.codeartifact_encrypted_token_prod != '' }}
+        run: |
+          token=$(gpg --decrypt --quiet --batch --passphrase "${{ secrets.GPG_CODEARTIFACT_TOKEN_PASSPHRASE }}" --output - <(echo "${{ inputs.codeartifact_encrypted_token_prod }}" | base64 --decode))
+          echo "::add-mask::$token"
+          {
+            echo "CODEARTIFACT_TOKEN_PROD=$token"
+            echo "UV_INDEX_CODE_ARTIFACT_PROD_USERNAME=aws"
+            echo "UV_INDEX_CODE_ARTIFACT_PROD_PASSWORD=$token"
+          } >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5.1.1
+        with:
+          role-to-assume: ${{ inputs.aws-cd-role }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Install requirements
+        working-directory: ./${{ inputs.infra_folder_path }}
+        run: |
+          npm install -g aws-cdk@2.1107.0
+          pip install -r uv-requirements.txt
+          make install
+
+      - name: Run pre commit
+        working-directory: ./${{ inputs.infra_folder_path }}
+        run: make pre-commit
