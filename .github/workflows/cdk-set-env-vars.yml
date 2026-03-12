@@ -12,7 +12,7 @@ on:
         required: false
         type: string
       multi-stack-deployment:
-        description: This flag selects between deployment with 2 Stacks ( Infra + Application ) which is the default or a Single unified stack. Single Stack deployment is better utilized for non-product stacks/services
+        description: This flag selects between deployment with 2 Stacks ( Infra + Application ) which is the default or a Single unified stack. Single Stack deployment is better ( but not exclusively ) utilized for non-product stacks/services
         required: false
         default: true
         type: string
