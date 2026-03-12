@@ -12,6 +12,10 @@ on:
         description: The environment id/type of your application e.g. review, integration, prod, etc etc
         required: true
         type: string
+      aws-account-id:
+        description: The AWS Account ID in which you will deploy your application
+        required: true
+        type: string
       aws-cd-role:
         description: The AWS CD Role with which you will deploy your application
         required: true
@@ -25,13 +29,29 @@ on:
         required: false
         type: string
         default: infra
-      infra-stack-name:
-        description: The Infrastructure Stack name. Provide custom name or use the output from the cdk-set-env-vars workflow
+      product-name:
+        description: This is the combination of Product Code and Environment Suffix. Mainly used to name resources without the moniker 'infra' or 'app'
         required: true
         type: string
+      ecr-registry:
+        description: This is the Registry where the Docker Image is deployed. Leave empty if you don't use an ECR Image in your Stack
+        default: ""
+        required: false
+        type: string
+      single-stack-name:
+        description: The Stack name when it's a single-stack deployment. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided but not both.
+        default: ""
+        required: false
+        type: string
+      infra-stack-name:
+        description: The Infrastructure Stack name. Provide custom name or use the output from the cdk-set-env-vars workflow. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided but not both.
+        default: ""
+        required: false
+        type: string
       app-stack-name:
-        description: The Application Stack name. Provide custom name or use the output from the cdk-set-env-vars workflow
-        required: true
+        description: The Application Stack name. Provide custom name or use the output from the cdk-set-env-vars workflow. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided but not both.
+        default: ""
+        required: false
         type: string
       codeartifact_encrypted_token_dev:
         description: The encrypted token for the Development CodeArtifact Domain and Repository
@@ -56,6 +76,41 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: ${{ inputs.python_version }}
+
+      - name: Export all required parameters
+        working-directory: ./${{ inputs.infra_folder_path }}
+        id: export-parameters
+        run: |
+          # Exporting Parameters from workflow inputs
+          echo "ENVIRONMENT_ID=${{ inputs.environment_id }}" >> "$GITHUB_ENV"
+          echo "AWS_ACCOUNT_ID=${{ inputs.aws-account-id }}" >> "$GITHUB_ENV"
+          echo "AWS_REGION=${{ inputs.aws-region }}" >> "$GITHUB_ENV"
+          echo "ECR_REGISTRY=${{ inputs.ecr-registry }}" >> "$GITHUB_ENV"
+          echo "PRODUCT_NAME=${{ inputs.product-name }}" >> "$GITHUB_ENV"
+          echo "SINGLE_STACK_NAME=${{ inputs.single-stack-name }}" >> "$GITHUB_ENV"
+          echo "INFRA_STACK_NAME=${{ inputs.infra-stack-name }}" >> "$GITHUB_ENV"
+          echo "APPLICATION_STACK_NAME=${{ inputs.app-stack-name }}" >> "$GITHUB_ENV"
+
+      - name: Verify if Stack names are provided correctly
+        id: verify-stack-names
+        run: |
+          if [[ $SINGLE_STACK_NAME = "" ]]; then
+            echo "It's not a single-stack deployment. Checking if infra-stack-name and app-stack-name stack names are provided."
+            if [[ $INFRA_STACK_NAME != "" && $APPLICATION_STACK_NAME != "" ]]; then
+              echo "infra-stack-name and app-stack-name stack names are provided. Everything looks good. Proceeding with a multi-stack deployment"
+            else
+              echo "infra-stack-name and app-stack-name stack names are not provided. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided."
+              exit 1
+            fi
+          else
+            echo "It is a single-stack deployment. Checking if infra-stack-name and app-stack-name stack names are provided."
+            if [[ $INFRA_STACK_NAME != "" || $APPLICATION_STACK_NAME != "" ]]; then
+              echo "infra-stack-name and/or app-stack-name stack names are provided but they shouldn't. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided but not both."
+              exit 1
+            else
+              echo "infra-stack-name and app-stack-name stack names are not provided. Everything looks good. Proceeding with a single-stack deployment."
+            fi
+          fi
 
       - name: Decrypt Codeartifact dev token
         run: |
@@ -94,18 +149,3 @@ jobs:
       - name: Run pre commit
         working-directory: ./${{ inputs.infra_folder_path }}
         run: make pre-commit
-
-      - name: Synth the cdk stacks
-        working-directory: ./${{ inputs.infra_folder_path }}
-        id: synth-stacks
-        run: |
-          set -o allexport
-          source environments/${{ inputs.environment_id }}.env
-          export INFRA_STACK_NAME=${{ inputs.infra-stack-name }}
-          export APPLICATION_STACK_NAME=${{ inputs.app-stack-name }}
-          uv run cdk synth -all -q
-
-      - name: Run cfn-lint against all synthesized stacks
-        working-directory: ./${{ inputs.infra_folder_path }}
-        run: |
-          uv run cfn-lint -I cdk.out/*.template.json
