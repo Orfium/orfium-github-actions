@@ -81,6 +81,7 @@ jobs:
         working-directory: ./${{ inputs.infra_folder_path }}
         id: export-parameters
         run: |
+          # shellcheck disable=SC2129
           # Exporting Parameters from workflow inputs
           echo "ENVIRONMENT_ID=${{ inputs.environment_id }}" >> "$GITHUB_ENV"
           echo "AWS_ACCOUNT_ID=${{ inputs.aws-account-id }}" >> "$GITHUB_ENV"
@@ -95,20 +96,20 @@ jobs:
         id: verify-stack-names
         run: |
           if [[ $SINGLE_STACK_NAME = "" ]]; then
-            echo "It's not a single-stack deployment. Checking if infra-stack-name and app-stack-name stack names are provided."
+            echo "It is not a single-stack deployment. Checking if infra-stack-name and app-stack-name stack names are provided"
             if [[ $INFRA_STACK_NAME != "" && $APPLICATION_STACK_NAME != "" ]]; then
               echo "infra-stack-name and app-stack-name stack names are provided. Everything looks good. Proceeding with a multi-stack deployment"
             else
-              echo "infra-stack-name and app-stack-name stack names are not provided. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided."
+              echo "infra-stack-name and app-stack-name stack names are not provided. Either the single-stack-name or the infra-stack-name & app-stack-name inputs must be provided"
               exit 1
             fi
           else
-            echo "It is a single-stack deployment. Checking if infra-stack-name and app-stack-name stack names are provided."
+            echo "It is a single-stack deployment. Checking if infra-stack-name and app-stack-name stack names are provided"
             if [[ $INFRA_STACK_NAME != "" || $APPLICATION_STACK_NAME != "" ]]; then
-              echo "infra-stack-name and/or app-stack-name stack names are provided but they shouldn't. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided but not both."
+              echo "infra-stack-name or app-stack-name stack names are provided but they should not be. Either the single-stack-name or the infra-stack-name & app-stack-name inputs must be provided but not both"
               exit 1
             else
-              echo "infra-stack-name and app-stack-name stack names are not provided. Everything looks good. Proceeding with a single-stack deployment."
+              echo "infra-stack-name and app-stack-name stack names are not provided. Everything looks good. Proceeding with a single-stack deployment"
             fi
           fi
 
