@@ -1,0 +1,292 @@
+name: Deploy CDK Stacks
+
+on:
+  workflow_call:
+    inputs:
+      python_version:
+        description: The Python version with which you want to build and deploy your cdk application. Default is 3.13
+        required: false
+        default: '3.13'
+        type: string
+      environment_id:
+        description: The environment id/type of your application e.g. review, integration, prod, etc etc
+        required: true
+        type: string
+      aws-account-id:
+        description: The AWS Account ID in which you will deploy your application
+        required: true
+        type: string
+      aws-cd-role:
+        description: The AWS CD Role with which you will deploy your application
+        required: true
+        type: string
+      aws-region:
+        description: The AWS Region where you want to deploy your application
+        required: true
+        type: string
+      infra_folder_path:
+        description: The folder path where all your CDK code lives. The default value is infra
+        required: false
+        type: string
+        default: infra
+      product-name:
+        description: This is the combination of Product Code and Environment Suffix. Mainly used to name resources without the moniker 'infra' or 'app'
+        required: true
+        type: string
+      ecr-registry:
+        description: This is the Registry where the Docker Image is deployed. Leave empty if you don't use an ECR Image in your Stack
+        default: ""
+        required: false
+        type: string
+      single-stack-name:
+        description: The Stack name when it's a single-stack deployment. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided but not both.
+        default: ""
+        required: false
+        type: string
+      infra-stack-name:
+        description: The Infrastructure Stack name. Provide custom name or use the output from the cdk-set-env-vars workflow. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided but not both.
+        default: ""
+        required: false
+        type: string
+      app-stack-name:
+        description: The Application Stack name. Provide custom name or use the output from the cdk-set-env-vars workflow. Either "single-stack-name" or "infra-stack-name & app-stack-name" must be provided but not both.
+        default: ""
+        required: false
+        type: string
+      dynamic_cf_parameters:
+        required: false
+        type: string
+      run-migrations-command:
+        description: The command the migrations task will run. Leave empty to skip running migrations
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  synth-and-deploy-stacks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Export all required parameters
+        working-directory: ./${{ inputs.infra_folder_path }}
+        id: export-parameters
+        run: |
+          # shellcheck disable=SC2129
+          # Exporting Parameters from workflow inputs
+          echo "ENVIRONMENT_ID=${{ inputs.environment_id }}" >> "$GITHUB_ENV"
+          echo "AWS_ACCOUNT_ID=${{ inputs.aws-account-id }}" >> "$GITHUB_ENV"
+          echo "AWS_REGION=${{ inputs.aws-region }}" >> "$GITHUB_ENV"
+          echo "ECR_REGISTRY=${{ inputs.ecr-registry }}" >> "$GITHUB_ENV"
+          echo "PRODUCT_NAME=${{ inputs.product-name }}" >> "$GITHUB_ENV"
+          echo "SINGLE_STACK_NAME=${{ inputs.single-stack-name }}" >> "$GITHUB_ENV"
+          echo "INFRA_STACK_NAME=${{ inputs.infra-stack-name }}" >> "$GITHUB_ENV"
+          echo "APPLICATION_STACK_NAME=${{ inputs.app-stack-name }}" >> "$GITHUB_ENV"
+          # Exporting Parameters from workflow dynamic_cf_parameters
+          DYNAMIC_CF_PARAMETERS='${{ inputs.dynamic_cf_parameters }}'
+          if [[ -z $DYNAMIC_CF_PARAMETERS ]]; then
+            echo "There are no dynamic parameters used in this run. Proceeding."
+          else
+            echo "Dynamic Parameters have been found. Exporting them to the GitHub Environment to be used in the following GitHub Steps"
+            echo ${{ inputs.dynamic_cf_parameters }} | jq -r "to_entries|map(\"\(.key)=\(.value|tostring)\")|.[]" >> "$GITHUB_ENV"
+          fi
+
+      - name: Verify if Stack names are provided correctly
+        id: verify-stack-names
+        run: |
+          MULTI_STACK_DEPLOYMENT=1
+          if [[ $SINGLE_STACK_NAME = "" ]]; then
+            echo "It is not a single-stack deployment. Checking if infra-stack-name and app-stack-name stack names are provided"
+            if [[ $INFRA_STACK_NAME != "" && $APPLICATION_STACK_NAME != "" ]]; then
+              echo "infra-stack-name and app-stack-name stack names are provided. Everything looks good. Proceeding with a multi-stack deployment"
+            else
+              echo "infra-stack-name and app-stack-name stack names are not provided. Either the single-stack-name or the infra-stack-name & app-stack-name inputs must be provided"
+              exit 1
+            fi
+          else
+            echo "It is a single-stack deployment. Checking if infra-stack-name and app-stack-name stack names are provided"
+            if [[ $INFRA_STACK_NAME != "" || $APPLICATION_STACK_NAME != "" ]]; then
+              echo "infra-stack-name or app-stack-name stack names are provided but they should not be. Either the single-stack-name or the infra-stack-name & app-stack-name inputs must be provided but not both"
+              exit 1
+            else
+              echo "infra-stack-name and app-stack-name stack names are not provided. Everything looks good. Proceeding with a single-stack deployment"
+              MULTI_STACK_DEPLOYMENT=0
+            fi
+          fi
+          echo "MULTI_STACK_DEPLOYMENT=$MULTI_STACK_DEPLOYMENT" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python "${{ inputs.python_version }}"
+        id: python-setup
+        uses: actions/setup-python@v6
+        with:
+          python-version: "${{ inputs.python_version }}"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5.1.1
+        with:
+          role-to-assume: ${{ inputs.aws-cd-role }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Install requirements
+        working-directory: ./${{ inputs.infra_folder_path }}
+        run: |
+          npm install -g aws-cdk@2.1107.0
+          pip install boto3
+          pip install -r uv-requirements.txt
+          make install
+
+      - name: Synth the cdk stacks
+        working-directory: ./${{ inputs.infra_folder_path }}
+        id: synth-stacks
+        run: |
+          uv run cdk synth -q
+
+      - name: Run cfn-lint against all synthesized stacks
+        working-directory: ./${{ inputs.infra_folder_path }}
+        run: |
+          uv run cfn-lint -I cdk.out/*.template.json --ignore-checks W6001
+
+      ##### Start of Multi Stack Deployment #####
+      - name: Check infra stack diffs
+        if: ${{ steps.verify-stack-names.outputs.MULTI_STACK_DEPLOYMENT == 1 }}
+        working-directory: ./${{ inputs.infra_folder_path }}
+        id: check-infra-stack-diffs
+        run: |
+          CREATE_UPDATE_INFRA=0
+          if aws cloudformation describe-stacks --stack-name "$INFRA_STACK_NAME"; then
+            echo "Infrastructure stack $INFRA_STACK_NAME exists. Checking for differences"
+            if uv run cdk diff --fail "$INFRA_STACK_NAME"; then
+              echo "Infrastructure stack $INFRA_STACK_NAME does not have updates. Proceeding with updating just the $APPLICATION_STACK_NAME stack"
+            else
+              echo "Infrastructure stack $INFRA_STACK_NAME has updates. Deploying the updates"
+              CREATE_UPDATE_INFRA=1
+            fi
+          else
+            echo "Infrastructure stack $INFRA_STACK_NAME doesn't exist. Proceeding with its creation"
+            CREATE_UPDATE_INFRA=1
+          fi
+          echo "CREATE_UPDATE_INFRA=$CREATE_UPDATE_INFRA" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy the ${{ inputs.infra-stack-name }} stack
+        if: ${{ steps.check-infra-stack-diffs.outputs.CREATE_UPDATE_INFRA == 1 }}
+        working-directory: ./${{ inputs.infra_folder_path }}
+        id: deploy-infra-stack
+        run: |
+          uv run cdk deploy --require-approval never --exclusively "$INFRA_STACK_NAME"
+
+      - name: Gather cluster requirements for migrations
+        if: ${{ inputs.run-migrations-command != '' && steps.verify-stack-names.outputs.MULTI_STACK_DEPLOYMENT == 1 }}
+        id: gather-migration-reqs
+        run: |
+          # shellcheck disable=SC2016
+          ECS_CLUSTER_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "${{ inputs.infra-stack-name }}" \
+            --query "Stacks[0].Outputs[?contains(OutputKey, 'ClusterClusterArn')].OutputValue" \
+            --output text)
+          ECS_CLUSTER_SG_ID=$(aws cloudformation describe-stacks \
+            --stack-name "${{ inputs.infra-stack-name }}" \
+            --query "Stacks[0].Outputs[?contains(OutputKey, 'ClusterSecurityGroupId')].OutputValue" \
+            --output text)
+          VPC_PRIVATE_SUBNETS=$(aws cloudformation describe-stacks \
+            --stack-name "todo-cdk-14-infra" \
+            --query "Stacks[0].Outputs[?contains(OutputKey, 'NetworkPrivateSubnets')].OutputValue" \
+            --output text)
+          # shellcheck disable=SC2129
+          echo "ECS_CLUSTER_ARN=$ECS_CLUSTER_ARN" >> "$GITHUB_OUTPUT"
+          echo "ECS_CLUSTER_SG_ID=$ECS_CLUSTER_SG_ID" >> "$GITHUB_OUTPUT"
+          echo "VPC_PRIVATE_SUBNETS=$VPC_PRIVATE_SUBNETS" >> "$GITHUB_OUTPUT"
+
+      - name: Run Task With Command
+        if: ${{ inputs.run-migrations-command != '' && steps.verify-stack-names.outputs.MULTI_STACK_DEPLOYMENT == 1 }}
+        id: run-task
+        shell: python
+        run: |
+          import shlex
+          import sys
+
+          import boto3
+
+          ecs = boto3.client("ecs")
+
+          def main():
+              cluster_arn = "${{ steps.gather-migration-reqs.outputs.ECS_CLUSTER_ARN }}"
+              cluster_sg_id = "${{ steps.gather-migration-reqs.outputs.ECS_CLUSTER_SG_ID }}"
+              vpc_private_subnets = "${{ steps.gather-migration-reqs.outputs.VPC_PRIVATE_SUBNETS }}"
+              command = shlex.split('${{ inputs.run-migrations-command }}')
+
+              task_definition_arn = ecs.describe_task_definition(
+                  taskDefinition='todo-cdk-14-infra'
+              )["taskDefinition"]["taskDefinitionArn"]
+
+              overrides = {
+                  "containerOverrides": [
+                      {   "name": "migrator",
+                          "command": command,
+                      },
+                  ],
+              }
+
+              response = ecs.run_task(
+                  cluster=cluster_arn,
+                  taskDefinition=task_definition_arn,
+                  networkConfiguration={
+                      'awsvpcConfiguration': {
+                          'subnets':vpc_private_subnets.split(","),
+                          'securityGroups': [
+                              cluster_sg_id,
+                          ],
+                          'assignPublicIp': 'DISABLED'
+                      }
+                  },
+                  overrides=overrides,
+                  launchType="FARGATE",
+                  count=1,
+              )
+              task_arn = response["tasks"][0]["taskArn"]
+
+              waiter = ecs.get_waiter("tasks_stopped")
+              waiter.wait(
+                  cluster=cluster_arn,
+                  tasks=[
+                      task_arn
+                  ],
+              )
+
+              response = ecs.describe_tasks(
+                  cluster=cluster_arn,
+                  tasks=[
+                      task_arn
+                  ],
+              )
+
+              command_exit_code = [
+                  x["exitCode"]
+                  for x in response["tasks"][0]["containers"]
+                  if x["name"] == "migrator"
+              ][0]
+
+              if command_exit_code:
+                  print(f"Task {task_arn} has failed")
+                  sys.exit(command_exit_code)
+
+              print(f"Task {task_arn} has finished successfully")
+
+          main()
+
+      - name: Deploy the ${{ inputs.app-stack-name }} stack
+        if: ${{ steps.verify-stack-names.outputs.MULTI_STACK_DEPLOYMENT == 1 }}
+        working-directory: ./${{ inputs.infra_folder_path }}
+        id: deploy-app-stack
+        run: |
+          uv run cdk deploy --require-approval never --exclusively "$APPLICATION_STACK_NAME"
+      ##### End of Multi Stack Deployment #####
+
+      ##### Start of Single Stack Deployment #####
+      - name: Deploy the ${{ inputs.single-stack-name }} stack
+        if: ${{ steps.verify-stack-names.outputs.MULTI_STACK_DEPLOYMENT == 0 }}
+        working-directory: ./${{ inputs.infra_folder_path }}
+        id: deploy-single-stack
+        run: |
+          uv run cdk deploy --require-approval never --exclusively "$SINGLE_STACK_NAME"
+      ##### End of Single Stack Deployment #####
