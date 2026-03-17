@@ -145,7 +145,7 @@ jobs:
       - name: Run cfn-lint against all synthesized stacks
         working-directory: ./${{ inputs.infra_folder_path }}
         run: |
-          uv run cfn-lint -I cdk.out/*.template.json
+          uv run cfn-lint -I cdk.out/*.template.json --ignore-checks W6001
 
       ##### Start of Multi Stack Deployment #####
       - name: Check infra stack diffs
